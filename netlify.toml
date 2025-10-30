@@ -1,5 +1,5 @@
 [build]  
-  command = "cd types && yarn && cd ../client && yarn && yarn build"
+  command = "cd types && npm install --legacy-peer-deps && cd ../client && npm install --legacy-peer-deps && npm run build"
   publish = "client/dist"
 
 # Rule for router history mode
