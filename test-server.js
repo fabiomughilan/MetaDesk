@@ -1,10 +1,12 @@
 // Quick server test to verify seat reservation fix
 const WebSocket = require('ws');
 
+// Test Railway server to see if our nuclear option deployed
 const SERVER_URL = 'wss://metadesk-dev.up.railway.app';
 
-console.log('🧪 Testing MetaDesk server connection...');
+console.log('🧪 Testing MetaDesk RAILWAY server connection...');
 console.log(`📡 Connecting to: ${SERVER_URL}`);
+console.log('⏰ Testing after NUCLEAR V3 deployment...');
 
 const ws = new WebSocket(SERVER_URL);
 
@@ -32,10 +34,12 @@ ws.on('message', function(data) {
             console.log('❌ Error received:', message.error);
             if (message.error.includes('seat reservation')) {
                 console.log('🚨 SEAT RESERVATION ERROR STILL OCCURRING!');
+                console.log('❌ Railway deployment has NOT picked up our nuclear option!');
             }
         } else if (message.roomId) {
             console.log('✅ Successfully joined room:', message.roomId);
             console.log('🎉 NO SEAT RESERVATION ERRORS!');
+            console.log('🚀 NUCLEAR V3 DEPLOYMENT SUCCESSFUL!');
         }
     } catch (e) {
         console.log('📋 Raw message:', data.toString());
@@ -50,9 +54,9 @@ ws.on('close', function(code, reason) {
     console.log(`🔌 Connection closed. Code: ${code}, Reason: ${reason}`);
 });
 
-// Timeout after 10 seconds
+// Timeout after 15 seconds to allow more time for Railway
 setTimeout(() => {
     console.log('⏰ Test timeout reached');
     ws.close();
     process.exit(0);
-}, 10000);
+}, 15000);

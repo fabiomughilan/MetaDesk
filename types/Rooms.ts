@@ -1,6 +1,7 @@
 export enum RoomType {
   LOBBY = 'lobby',
-  PUBLIC = 'MetaDeskPublic',
+  PUBLIC = 'InstantMetaDesk',
+  INSTANT = 'InstantMetaDesk',
   CUSTOM = 'custom',
 }
 

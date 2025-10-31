@@ -10,6 +10,7 @@ import { RoomType } from '../types/Rooms'
 
 import { MetaDesk } from './rooms/MetaDesk'
 import { MetaDeskPublic } from './rooms/MetaDeskPublic'
+import { InstantMetaDesk } from './rooms/InstantMetaDesk'
 
 const port = Number(process.env.PORT || 8080)
 const app = express()
@@ -49,6 +50,12 @@ gameServer.define(RoomType.LOBBY, LobbyRoom)
 gameServer.define(RoomType.PUBLIC, MetaDeskPublic, {
   name: 'Public Lobby (No Reservations)',
   description: 'Fast join workspace - no seat reservations',
+  password: null,
+  autoDispose: false,
+})
+gameServer.define(RoomType.INSTANT, InstantMetaDesk, {
+  name: 'Instant Lobby (Zero Wait)',
+  description: 'Instant join workspace - bypasses ALL reservations',
   password: null,
   autoDispose: false,
 })
