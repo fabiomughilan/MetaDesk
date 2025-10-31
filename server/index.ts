@@ -9,6 +9,7 @@ import { RoomType } from '../types/Rooms'
 // import socialRoutes from "@colyseus/social/express"
 
 import { MetaDesk } from './rooms/MetaDesk'
+import { MetaDeskPublic } from './rooms/MetaDeskPublic'
 
 const port = Number(process.env.PORT || 8080)
 const app = express()
@@ -37,9 +38,9 @@ const gameServer = new Server({
 
 // register room handlers
 gameServer.define(RoomType.LOBBY, LobbyRoom)
-gameServer.define(RoomType.PUBLIC, MetaDesk, {
-  name: 'Public Lobby',
-  description: 'For making friends and familiarizing yourself with the controls',
+gameServer.define(RoomType.PUBLIC, MetaDeskPublic, {
+  name: 'Public Lobby (No Reservations)',
+  description: 'Fast join workspace - no seat reservations',
   password: null,
   autoDispose: false,
 })
