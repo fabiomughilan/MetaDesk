@@ -19,15 +19,25 @@ import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 
 export class MetaDesk extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
-  private name: string
-  private description: string
+  private name: string = ''
+  private description: string = ''
   private password: string | null = null
+
+  // Override default seat reservation time
+  maxClients = 16 // Set maximum clients per room
+  
+  onCreate(options: IRoomData) {
+    // Set room settings
+    this.setSeatReservationTime(15) // 15 seconds for seat reservation
 
   async onCreate(options: IRoomData) {
     const { name, description, password, autoDispose } = options
     this.name = name
     this.description = description
     this.autoDispose = autoDispose
+    
+    // Set shorter seat reservation time
+    this.setSeatReservationTime(10)
 
     let hasPassword = false
     if (password) {

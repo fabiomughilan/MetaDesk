@@ -1,7 +1,7 @@
 import http from 'http'
 import express from 'express'
 import cors from 'cors'
-import { Server, LobbyRoom } from 'colyseus'
+import { Server, LobbyRoom, Client } from 'colyseus'
 import { WebSocketTransport } from '@colyseus/ws-transport'
 import { monitor } from '@colyseus/monitor'
 import { RoomType } from '../types/Rooms'
@@ -13,10 +13,12 @@ import { MetaDesk } from './rooms/MetaDesk'
 const port = Number(process.env.PORT || 2567)
 const app = express()
 
+// Enable CORS for all origins in development, specific origin in production
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://workdesk24.netlify.app/']  // Replace with your Netlify URL
-    : true
+  origin: true, // Allow all origins
+  methods: ["GET", "POST"],
+  allowedHeaders: ["my-custom-header"],
+  credentials: true
 }))
 app.use(express.json())
 // app.use(express.static('dist'))
@@ -24,9 +26,7 @@ app.use(express.json())
 const server = http.createServer(app)
 const gameServer = new Server({
   transport: new WebSocketTransport({
-    server,
-    pingInterval: 8000,
-    pingMaxRetries: 3
+    server
   })
 })
 

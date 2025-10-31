@@ -28,6 +28,51 @@ export default class Network {
   webRTC?: WebRTC
 
   mySessionId!: string
+  private maxRetries = 3
+  private retryDelay = 1000
+  private lastRoomType?: RoomType
+  private lastRoomData?: any
+
+  private async attemptReconnection() {
+    if (!this.lastRoomType) return
+
+    try {
+      switch (this.lastRoomType) {
+        case RoomType.PUBLIC:
+          await this.joinOrCreatePublic()
+          break
+        case RoomType.CUSTOM:
+          if (this.lastRoomData) {
+            if (this.lastRoomData.roomId) {
+              await this.joinCustomById(this.lastRoomData.roomId, this.lastRoomData.password)
+            } else {
+              await this.createCustom(this.lastRoomData)
+            }
+          }
+          break
+      }
+    } catch (error) {
+      console.error('Failed to reconnect:', error)
+    }
+  }
+
+  private async connectWithRetry(attempt: number = 1) {
+    try {
+      await this.joinLobbyRoom()
+      store.dispatch(setLobbyJoined(true))
+      console.log('Successfully connected to lobby')
+    } catch (error) {
+      console.warn(`Connection attempt ${attempt}/${this.maxRetries} failed:`, error)
+      if (attempt < this.maxRetries) {
+        const delay = Math.min(this.retryDelay * Math.pow(2, attempt - 1), 10000)
+        console.log(`Retrying in ${delay}ms...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        await this.connectWithRetry(attempt + 1)
+      } else {
+        console.error('Failed to connect after', this.maxRetries, 'attempts')
+      }
+    }
+  }
 
   constructor() {
     const protocol = window.location.protocol.replace('http', 'ws')
@@ -35,10 +80,11 @@ export default class Network {
       process.env.NODE_ENV === 'production'
         ? import.meta.env.VITE_SERVER_URL
         : `${protocol}//${window.location.hostname}:2567`
+    
     this.client = new Client(endpoint)
-    this.joinLobbyRoom().then(() => {
-      store.dispatch(setLobbyJoined(true))
-    })
+
+    // Attempt connection with retries
+    this.connectWithRetry()
 
     phaserEvents.on(Event.MY_PLAYER_NAME_CHANGE, this.updatePlayerName, this)
     phaserEvents.on(Event.MY_PLAYER_TEXTURE_CHANGE, this.updatePlayer, this)
@@ -67,35 +113,95 @@ export default class Network {
 
   // method to join the public lobby
   async joinOrCreatePublic() {
-    this.room = await this.client.joinOrCreate(RoomType.PUBLIC)
-    this.initialize()
+    try {
+      this.lastRoomType = RoomType.PUBLIC
+      this.lastRoomData = null
+      this.room = await this.client.joinOrCreate(RoomType.PUBLIC)
+      this.initialize()
+    } catch (error) {
+      console.error('Failed to join public room:', error)
+      await this.retryRoomConnection(() => this.client.joinOrCreate(RoomType.PUBLIC))
+    }
   }
 
   // method to join a custom room
   async joinCustomById(roomId: string, password: string | null) {
-    this.room = await this.client.joinById(roomId, { password })
-    this.initialize()
+    try {
+      this.lastRoomType = RoomType.CUSTOM
+      this.lastRoomData = { roomId, password }
+      this.room = await this.client.joinById(roomId, { password })
+      this.initialize()
+    } catch (error) {
+      console.error('Failed to join room:', error)
+      await this.retryRoomConnection(() => this.client.joinById(roomId, { password }))
+    }
   }
 
   // method to create a custom room
   async createCustom(roomData: IRoomData) {
     const { name, description, password, autoDispose } = roomData
-    this.room = await this.client.create(RoomType.CUSTOM, {
-      name,
-      description,
-      password,
-      autoDispose,
-    })
-    this.initialize()
+    try {
+      this.lastRoomType = RoomType.CUSTOM
+      this.lastRoomData = roomData
+      this.room = await this.client.create(RoomType.CUSTOM, {
+        name,
+        description,
+        password,
+        autoDispose,
+      })
+      this.initialize()
+    } catch (error) {
+      console.error('Failed to create room:', error)
+      await this.retryRoomConnection(() => 
+        this.client.create(RoomType.CUSTOM, {
+          name,
+          description,
+          password,
+          autoDispose,
+        })
+      )
+    }
+  }
+
+  // helper method to retry room connections
+  private async retryRoomConnection(connectFn: () => Promise<Room<IOfficeState>>, attempt: number = 1) {
+    if (attempt > this.maxRetries) {
+      throw new Error('Failed to connect to room after multiple attempts')
+    }
+
+    try {
+      const delay = Math.min(this.retryDelay * Math.pow(2, attempt - 1), 10000)
+      await new Promise(resolve => setTimeout(resolve, delay))
+      this.room = await connectFn()
+      this.initialize()
+    } catch (error) {
+      console.warn(`Room connection attempt ${attempt}/${this.maxRetries} failed:`, error)
+      await this.retryRoomConnection(connectFn, attempt + 1)
+    }
   }
 
   // set up all network listeners before the game starts
   initialize() {
     if (!this.room) return
 
-    this.lobby.leave()
+    try {
+      this.lobby.leave()
+    } catch (error) {
+      console.warn('Error leaving lobby:', error)
+    }
+
     this.mySessionId = this.room.sessionId
     store.dispatch(setSessionId(this.room.sessionId))
+
+    // Setup reconnection handling
+    this.room.onLeave((code) => {
+      console.log('Left room:', code)
+      if (code > 1000) {
+        console.log('Attempting to reconnect...')
+        this.attemptReconnection()
+      }
+    })
+
     this.webRTC = new WebRTC(this.mySessionId, this)
 
     // new instance added to the players MapSchema
