@@ -465,8 +465,40 @@ export default class Network {
 
     // when the server sends room data
     this.room.onMessage(Message.SEND_ROOM_DATA, (content) => {
+      console.log('📦 Received room data:', content);
       store.dispatch(setJoinedRoomData(content))
     })
+
+    // Enhanced generic message handler for debugging and handling unregistered messages
+    this.room.onMessage('*', (type, message) => {
+      // Known message types that are already handled
+      const knownTypes = [
+        Message.SEND_ROOM_DATA,
+        Message.ADD_CHAT_MESSAGE,
+        Message.DISCONNECT_STREAM,
+        Message.STOP_SCREEN_SHARE,
+        Message.UPDATE_PLAYER,
+        Message.UPDATE_PLAYER_NAME,
+        Message.READY_TO_CONNECT,
+        Message.CONNECT_TO_COMPUTER,
+        Message.DISCONNECT_FROM_COMPUTER,
+        Message.CONNECT_TO_WHITEBOARD,
+        Message.DISCONNECT_FROM_WHITEBOARD,
+        Message.VIDEO_CONNECTED,
+        Message.VIDEO_DISCONNECTED,
+        Message.CHAT
+      ];
+
+      if (!knownTypes.includes(type as Message)) {
+        console.log('🔍 Unhandled room message type:', type, 'message:', message);
+        
+        // Special handling for common unregistered message types
+        if (type === 'send_room_data') {
+          console.log('📦 Handling legacy send_room_data message:', message);
+          store.dispatch(setJoinedRoomData(message));
+        }
+      }
+    });
 
     // when a user sends a message
     this.room.onMessage(Message.ADD_CHAT_MESSAGE, ({ clientId, content }) => {

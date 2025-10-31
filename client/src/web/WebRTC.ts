@@ -10,7 +10,7 @@ interface VideoConnection {
 }
 
 export default class WebRTC {
-  private myPeer: Peer;
+  private myPeer!: Peer;
   private peers: Map<string, VideoConnection>;
   private onCalledPeers: Map<string, VideoConnection>;
   private videoGrid: HTMLElement;
@@ -18,22 +18,31 @@ export default class WebRTC {
   private myVideo: HTMLVideoElement;
   private myStream?: MediaStream;
   private network: Network;
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 5;
+  private reconnectDelay: number = 2000;
+  private currentUserId: string;
 
   constructor(userId: string, network: Network) {
     this.peers = new Map();
     this.onCalledPeers = new Map();
     this.myVideo = document.createElement("video");
     this.network = network;
+    this.currentUserId = userId;
     this.videoGrid = this.createOrGetElement("video-grid");
     const sanitizedId = this.replaceInvalidId(userId);
     
-    // PeerJS configuration with reconnection options
-    this.myPeer = new Peer(sanitizedId, {
+    this.initializePeer(sanitizedId);
+  }
+
+  private initializePeer(sanitizedId: string) {
+    // PeerJS configuration with multiple server options for better reliability
+    const peerConfig = {
       host: import.meta.env.VITE_PEER_HOST || '0.peerjs.com',
       port: Number(import.meta.env.VITE_PEER_PORT) || 443,
       path: '/metadesk',
       secure: true,
-      debug: 1,
+      debug: 0, // Reduced debug level to minimize console spam
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -41,14 +50,27 @@ export default class WebRTC {
           { urls: 'stun:stun2.l.google.com:19302' },
           { urls: 'stun:stun3.l.google.com:19302' },
           { urls: 'stun:stun4.l.google.com:19302' },
-          { urls: 'stun:stun.global.stun.twilio.com:3478' }
+          { urls: 'stun:global.stun.twilio.com:3478' },
+          { urls: 'stun:stun.cloudflare.com:3478' }
         ],
-        iceCandidatePoolSize: 10
-      }
-    });
+        iceCandidatePoolSize: 10,
+        // Add connection timeout settings
+        iceTransportPolicy: 'all',
+        bundlePolicy: 'max-bundle'
+      },
+      // Add connection timeout
+      timeout: 10000
+    };
+
+    console.log('🎥 Initializing WebRTC PeerJS connection...');
+    console.log('📡 Using PeerJS host:', peerConfig.host);
+    
+    // PeerJS configuration with reconnection options
+    this.myPeer = new Peer(sanitizedId, peerConfig);
 
     this.myPeer.on("open", (id) => {
-      console.log("WebRTC initialized:", { userId, sanitizedId: id });
+      console.log("✅ WebRTC PeerJS initialized:", { userId: this.currentUserId, sanitizedId: id });
+      this.reconnectAttempts = 0; // Reset on successful connection
     });
 
     this.myPeer.on("call", (call) => {
@@ -81,24 +103,119 @@ export default class WebRTC {
     });
 
     this.myPeer.on("error", (error) => {
-      console.error("PeerJS error:", error);
-      if (error.type === 'network' || error.type === 'disconnected') {
-        console.log("Attempting to reconnect PeerJS...");
-        this.myPeer.reconnect();
+      // Enhanced error logging with more context
+      console.error("❌ PeerJS error:", error.type, error.message);
+      
+      // Enhanced error categorization and handling
+      switch (error.type) {
+        case 'network':
+          console.warn("🌐 Network error - attempting reconnection...");
+          this.handlePeerReconnection();
+          break;
+        case 'disconnected':
+          console.warn("🔌 PeerJS disconnected - attempting reconnection...");
+          this.handlePeerReconnection();
+          break;
+        case 'server-error':
+          console.warn("🖥️ Server error - attempting reconnection...");
+          this.handlePeerReconnection();
+          break;
+        case 'socket-error':
+          console.warn("🔌 Socket error - attempting reconnection...");
+          this.handlePeerReconnection();
+          break;
+        case 'peer-unavailable':
+          console.warn("🚫 Peer unavailable - this is normal when calling non-existent peers");
+          break;
+        case 'browser-incompatible':
+          console.error("🚫 Browser incompatible with PeerJS - WebRTC features disabled");
+          break;
+        case 'invalid-id':
+          console.error("🆔 Invalid peer ID - trying with sanitized ID");
+          break;
+        case 'unavailable-id':
+          console.error("🆔 Peer ID unavailable - trying with new ID");
+          this.recreatePeerWithNewId();
+          break;
+        default:
+          console.error("🚫 Unhandled PeerJS error:", error);
       }
     });
 
     this.myPeer.on("disconnected", () => {
-      console.log("PeerJS disconnected, attempting to reconnect...");
-      this.myPeer.reconnect();
+      console.log("🔌 PeerJS disconnected, attempting to reconnect...");
+      this.handlePeerReconnection();
     });
 
     this.myPeer.on("close", () => {
-      console.log("PeerJS connection closed");
+      console.log("🔒 PeerJS connection closed");
+      // Don't auto-reconnect on close as it might be intentional
     });
 
     this.myVideo.muted = true;
     this.initialize();
+  }
+
+  private handlePeerReconnection() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error(`🚫 Max PeerJS reconnection attempts (${this.maxReconnectAttempts}) reached. Video features disabled.`);
+      return;
+    }
+
+    this.reconnectAttempts++;
+    // Exponential backoff with jitter
+    const baseDelay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+    const jitter = Math.random() * 1000; // Add up to 1 second of jitter
+    const delay = Math.min(baseDelay + jitter, 30000); // Cap at 30 seconds
+    
+    console.log(`🔄 PeerJS reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${Math.round(delay)}ms...`);
+    
+    setTimeout(() => {
+      try {
+        if (this.myPeer && (this.myPeer.disconnected || this.myPeer.destroyed)) {
+          if (!this.myPeer.destroyed) {
+            console.log("🔄 Attempting to reconnect existing peer...");
+            this.myPeer.reconnect();
+          } else {
+            console.log("🔄 Peer destroyed, creating new instance...");
+            this.recreatePeer();
+          }
+        }
+      } catch (error) {
+        console.error("❌ Failed to reconnect PeerJS:", error);
+        // Try creating a new peer instance if reconnect fails
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          console.log("🔄 Trying to recreate peer after reconnect failure...");
+          this.recreatePeer();
+        }
+      }
+    }, delay);
+  }
+
+  private recreatePeer() {
+    console.log("🔄 Recreating PeerJS instance...");
+    try {
+      this.myPeer.destroy();
+    } catch (error) {
+      console.warn("Error destroying old peer:", error);
+    }
+    
+    const sanitizedId = this.replaceInvalidId(this.currentUserId + '-' + Date.now());
+    this.initializePeer(sanitizedId);
+  }
+
+  private recreatePeerWithNewId() {
+    console.log("🔄 Recreating PeerJS instance with new ID...");
+    try {
+      this.myPeer.destroy();
+    } catch (error) {
+      console.warn("Error destroying old peer:", error);
+    }
+    
+    // Generate a new unique ID with timestamp
+    const newId = this.replaceInvalidId(this.currentUserId + '-retry-' + Date.now());
+    console.log("🆔 Using new peer ID:", newId);
+    this.initializePeer(newId);
   }
 
   private createOrGetElement(className: string): HTMLElement {
