@@ -25,9 +25,7 @@ app.use(express.json())
 
 const server = http.createServer(app)
 const gameServer = new Server({
-  transport: new WebSocketTransport({
-    server
-  })
+  server
 })
 
 // register room handlers

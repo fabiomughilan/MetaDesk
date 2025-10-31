@@ -1,13 +1,14 @@
 import { Schema, ArraySchema, SetSchema, MapSchema } from '@colyseus/schema'
 
 // Interfaces for each schema type
-export interface IPlayer {
+export interface IPlayer extends Schema {
   name: string;
   x: number;
   y: number;
   anim: string;
   readyToConnect: boolean;
   videoConnected: boolean;
+  onChange?: (changes: Array<any>) => void;
 }
 
 export interface IComputer {

@@ -28,8 +28,8 @@ export default class Network {
   webRTC?: WebRTC
 
   mySessionId!: string
-  private maxRetries = 3
-  private retryDelay = 1000
+  private maxRetries = 5
+  private retryDelay = 2000
   private lastRoomType?: RoomType
   private lastRoomData?: any
 
@@ -61,6 +61,10 @@ export default class Network {
       await this.joinLobbyRoom()
       store.dispatch(setLobbyJoined(true))
       console.log('Successfully connected to lobby')
+      // If we succeed, try to reconnect to the previous room
+      if (this.lastRoomType) {
+        await this.attemptReconnection()
+      }
     } catch (error) {
       console.warn(`Connection attempt ${attempt}/${this.maxRetries} failed:`, error)
       if (attempt < this.maxRetries) {
@@ -70,6 +74,9 @@ export default class Network {
         await this.connectWithRetry(attempt + 1)
       } else {
         console.error('Failed to connect after', this.maxRetries, 'attempts')
+        // Reset room state on final failure
+        this.lastRoomType = undefined
+        this.lastRoomData = undefined
       }
     }
   }
