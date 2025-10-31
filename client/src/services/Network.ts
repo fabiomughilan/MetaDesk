@@ -51,8 +51,8 @@ export default class Network {
   }
 
   mySessionId!: string;
-  private maxRetries = 5
-  private retryDelay = 2000
+  private maxRetries = 10 // Increased from 5
+  private retryDelay = 1000 // Reduced from 2000
   private lastRoomType?: RoomType
   private lastRoomData?: any
 
@@ -81,6 +81,7 @@ export default class Network {
 
   private async connectWithRetry(attempt: number = 1) {
     try {
+      console.log(`Connection attempt ${attempt}/${this.maxRetries}...`)
       await this.joinLobbyRoom()
       store.dispatch(setLobbyJoined(true))
       console.log('Successfully connected to lobby')
@@ -91,12 +92,17 @@ export default class Network {
     } catch (error) {
       console.warn(`Connection attempt ${attempt}/${this.maxRetries} failed:`, error)
       if (attempt < this.maxRetries) {
-        const delay = Math.min(this.retryDelay * Math.pow(2, attempt - 1), 10000)
+        // More aggressive retry for connection issues
+        const delay = attempt === 1 ? 1000 : Math.min(this.retryDelay * Math.pow(1.5, attempt - 1), 8000)
         console.log(`Retrying in ${delay}ms...`)
         await new Promise(resolve => setTimeout(resolve, delay))
         await this.connectWithRetry(attempt + 1)
       } else {
         console.error('Failed to connect after', this.maxRetries, 'attempts')
+        // Continue trying in background
+        console.log('Continuing to retry in background...')
+        setTimeout(() => this.connectWithRetry(1), 10000) // Try again in 10 seconds
+        
         // Reset room state on final failure
         this.lastRoomType = undefined
         this.lastRoomData = undefined
@@ -106,10 +112,12 @@ export default class Network {
 
   constructor() {
     const endpoint = import.meta.env.VITE_SERVER_URL
-    console.log('Connecting to server:', endpoint)
+    console.log('🚀 MetaDesk Network Service Initializing...')
+    console.log('📡 Server endpoint:', endpoint)
+    console.log('⏱️  Connection timeout:', import.meta.env.VITE_CONNECTION_TIMEOUT, 'ms')
     
     if (!endpoint) {
-      console.error('Server URL is not configured. Check VITE_SERVER_URL in .env file')
+      console.error('❌ Server URL is not configured. Check VITE_SERVER_URL in .env file')
       return
     }
     
@@ -118,10 +126,11 @@ export default class Network {
 
     // Initialize WebRTC early with a temporary ID
     const tempId = 'temp-' + Math.random().toString(36).substr(2, 9)
-    console.log('Initializing WebRTC with temporary ID:', tempId)
+    console.log('🎥 Initializing WebRTC with temporary ID:', tempId)
     this.webRTC = new WebRTC(tempId, this)
 
     // Attempt connection with retries
+    console.log('🔄 Starting connection attempts...')
     this.connectWithRetry()
 
     phaserEvents.on(Event.MY_PLAYER_NAME_CHANGE, this.updatePlayerName, this)
@@ -138,6 +147,7 @@ export default class Network {
       console.log('Attempting to join lobby room...');
       this.connectionStatus = ConnectionStatus.CONNECTING;
       
+      // Create lobby connection with proper timeout handling
       this.lobby = await this.client.joinOrCreate(RoomType.LOBBY);
       console.log('Successfully joined lobby');
       
@@ -150,13 +160,13 @@ export default class Network {
       this.lobby.onError((error) => {
         console.error('Lobby room error:', error);
         this.connectionStatus = ConnectionStatus.ERROR;
-        this.scheduleReconnect();
+        // Don't schedule reconnect here, let the main retry logic handle it
       });
 
       this.lobby.onLeave((code) => {
         console.log('Left lobby room, code:', code);
         this.connectionStatus = ConnectionStatus.DISCONNECTED;
-        this.scheduleReconnect();
+        // Don't schedule reconnect here, let the main retry logic handle it
       });
 
       // Set up room listing handlers

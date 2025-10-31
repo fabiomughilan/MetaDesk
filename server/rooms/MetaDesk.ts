@@ -29,8 +29,9 @@ export class MetaDesk extends Room<OfficeState> {
     this.name = name;
     this.description = description;
     this.autoDispose = autoDispose;
+    
     // Set longer seat reservation time to handle slow connections and authentication
-    this.setSeatReservationTime(120); // 2 minutes to handle slow connections
+    this.setSeatReservationTime(180); // 3 minutes to handle slow connections
 
     let hasPassword = false;
     if (password) {
@@ -137,29 +138,61 @@ export class MetaDesk extends Room<OfficeState> {
   }
 
   async onAuth(client: Client, options: { password: string | null }): Promise<boolean> {
+    console.log(`Authentication attempt for client ${client.sessionId}`)
+    
     if (this.password) {
       if (!options.password) {
+        console.log(`Client ${client.sessionId} failed auth: no password provided`)
         return false
       }
       const validPassword = await bcrypt.compare(options.password, this.password)
+      console.log(`Client ${client.sessionId} auth result: ${validPassword}`)
       return validPassword
     }
+    console.log(`Client ${client.sessionId} auth successful: no password required`)
     return true
   }
 
+  async onReserve(client: Client, options: any): Promise<any> {
+    console.log(`Seat reservation for client ${client.sessionId}`)
+    
+    // Check if room is full
+    if (this.clients.length >= this.maxClients) {
+      console.log(`Client ${client.sessionId} reservation denied: room full`)
+      throw new Error(`Room is full (${this.maxClients} players maximum)`)
+    }
+
+    console.log(`Seat reserved for client ${client.sessionId}. Current players: ${this.clients.length}/${this.maxClients}`)
+    return {}
+  }
+
   onJoin(client: Client, options: any): void {
-    client.send(Message.SEND_ROOM_DATA, {
-      roomId: this.roomId,
-      name: this.name,
-      description: this.description,
-    })
-    this.state.players.set(client.sessionId, new Player())
+    console.log(`Client ${client.sessionId} joined room ${this.roomId}`)
+    
+    try {
+      client.send(Message.SEND_ROOM_DATA, {
+        roomId: this.roomId,
+        name: this.name,
+        description: this.description,
+      })
+      this.state.players.set(client.sessionId, new Player())
+      console.log(`Player added for client ${client.sessionId}. Total players: ${this.state.players.size}`)
+    } catch (error) {
+      console.error(`Error in onJoin for client ${client.sessionId}:`, error)
+    }
   }
 
   onLeave(client: Client, consented: boolean): void {
+    console.log(`Client ${client.sessionId} left room ${this.roomId}, consented: ${consented}`)
+    
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)
+      console.log(`Player removed for client ${client.sessionId}. Total players: ${this.state.players.size}`)
     }
+  }
+
+  onError(client: Client, error: any): void {
+    console.error(`Error for client ${client.sessionId} in room ${this.roomId}:`, error)
   }
 
   onDispose(): void {
