@@ -21,14 +21,34 @@ import {
 } from '../stores/ChatStore'
 import { setWhiteboardUrls } from '../stores/WhiteboardStore'
 
+enum ConnectionStatus {
+  DISCONNECTED = 'disconnected',
+  CONNECTING = 'connecting',
+  CONNECTED = 'connected',
+  ERROR = 'error'
+}
+
 export default class Network {
-  private client: Client;
+  private client!: Client;
   private room?: Room<IOfficeState>;
   private lobby!: Room;
   webRTC?: WebRTC;
+  private connectionStatus: ConnectionStatus = ConnectionStatus.DISCONNECTED;
   private ready: boolean = false;
+  private reconnectTimer?: NodeJS.Timeout;
   private connecting: boolean = false;
   private disconnecting: boolean = false;
+
+  private scheduleReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+    }
+    
+    this.reconnectTimer = setTimeout(() => {
+      console.log('Attempting to reconnect...');
+      this.connectWithRetry();
+    }, 5000); // Try to reconnect after 5 seconds
+  }
 
   mySessionId!: string;
   private maxRetries = 5
@@ -88,6 +108,12 @@ export default class Network {
     const endpoint = import.meta.env.VITE_SERVER_URL
     console.log('Connecting to server:', endpoint)
     
+    if (!endpoint) {
+      console.error('Server URL is not configured. Check VITE_SERVER_URL in .env file')
+      return
+    }
+    
+    // Initialize Colyseus client with reconnection options
     this.client = new Client(endpoint)
 
     // Initialize WebRTC early with a temporary ID
@@ -108,42 +134,102 @@ export default class Network {
    * connected clients whenever rooms with "realtime listing" have updates
    */
   async joinLobbyRoom() {
-    this.lobby = await this.client.joinOrCreate(RoomType.LOBBY)
+    try {
+      console.log('Attempting to join lobby room...');
+      this.connectionStatus = ConnectionStatus.CONNECTING;
+      
+      this.lobby = await this.client.joinOrCreate(RoomType.LOBBY);
+      console.log('Successfully joined lobby');
+      
+      // Set up lobby room event handlers
+      this.lobby.onStateChange(() => {
+        console.log('Lobby state updated');
+        this.connectionStatus = ConnectionStatus.CONNECTED;
+      });
 
-    this.lobby.onMessage('rooms', (rooms) => {
-      store.dispatch(setAvailableRooms(rooms))
-    })
+      this.lobby.onError((error) => {
+        console.error('Lobby room error:', error);
+        this.connectionStatus = ConnectionStatus.ERROR;
+        this.scheduleReconnect();
+      });
 
-    this.lobby.onMessage('+', ([roomId, room]) => {
-      store.dispatch(addAvailableRooms({ roomId, room }))
-    })
+      this.lobby.onLeave((code) => {
+        console.log('Left lobby room, code:', code);
+        this.connectionStatus = ConnectionStatus.DISCONNECTED;
+        this.scheduleReconnect();
+      });
 
-    this.lobby.onMessage('-', (roomId) => {
-      store.dispatch(removeAvailableRooms(roomId))
-    })
+      // Set up room listing handlers
+      this.lobby.onMessage('rooms', (rooms) => {
+        console.log('Received rooms list:', rooms);
+        store.dispatch(setAvailableRooms(rooms));
+      });
+
+      this.lobby.onMessage('+', ([roomId, room]) => {
+        console.log('Room added:', roomId);
+        store.dispatch(addAvailableRooms({ roomId, room }));
+      });
+
+      this.lobby.onMessage('-', (roomId) => {
+        console.log('Room removed:', roomId);
+        store.dispatch(removeAvailableRooms(roomId));
+      });
+    } catch (error) {
+      console.error('Failed to join lobby:', error);
+      this.connectionStatus = ConnectionStatus.ERROR;
+      this.scheduleReconnect();
+      throw error;
+    }
   }
 
   // method to join the public lobby
   async joinOrCreatePublic() {
     try {
-      this.lastRoomType = RoomType.PUBLIC
-      this.lastRoomData = null
-      this.room = await this.client.joinOrCreate(RoomType.PUBLIC)
-      this.initialize()
+      console.log('Attempting to join public room...');
+      this.lastRoomType = RoomType.PUBLIC;
+      this.lastRoomData = null;
+      
+      this.room = await this.client.joinOrCreate(RoomType.PUBLIC);
+      console.log('Successfully joined/created public room:', this.room.id);
+      
+      // Set up room event handlers
+      this.room.onStateChange((state) => {
+        console.log('Room state updated:', {
+          numPlayers: state.players.size,
+          playerIds: Array.from(state.players.keys())
+        });
+      });
+
+      this.room.onError((error) => {
+        console.error('Room error:', error);
+        this.scheduleReconnect();
+      });
+
+      this.room.onLeave((code) => {
+        console.log('Left room, code:', code);
+        if (code > 1000) { // Abnormal closure
+          this.scheduleReconnect();
+        }
+      });
+
+      await this.initialize();
+      console.log('Room initialized successfully');
     } catch (error) {
-      console.error('Failed to join public room:', error)
-      await this.retryRoomConnection(() => this.client.joinOrCreate(RoomType.PUBLIC))
+      console.error('Failed to join public room:', error);
+      await this.retryRoomConnection(() => this.client.joinOrCreate(RoomType.PUBLIC));
     }
   }
 
   // method to join a custom room
   async joinCustomById(roomId: string, password: string | null) {
     try {
-      this.lastRoomType = RoomType.CUSTOM
-      this.lastRoomData = { roomId, password }
-      this.room = await this.client.joinById(roomId, { password })
-      this.initialize()
+      this.lastRoomType = RoomType.CUSTOM;
+      this.lastRoomData = { roomId, password };
+      this.room = await this.client.joinById(roomId, { password });
+      await this.initialize();
     } catch (error) {
+      console.error('Failed to join custom room:', error);
+      await this.retryRoomConnection(() => this.client.joinById(roomId, { password }));
       console.error('Failed to join room:', error)
       await this.retryRoomConnection(() => this.client.joinById(roomId, { password }))
     }

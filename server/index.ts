@@ -28,7 +28,11 @@ app.use(express.json())
 
 const server = http.createServer(app)
 const gameServer = new Server({
-  server
+  transport: new WebSocketTransport({
+    server,
+    pingInterval: 5000,
+    pingMaxRetries: 3,
+  })
 })
 
 // register room handlers

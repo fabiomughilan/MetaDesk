@@ -26,10 +26,48 @@ export default class WebRTC {
     this.network = network;
     this.videoGrid = this.createOrGetElement("video-grid");
     const sanitizedId = this.replaceInvalidId(userId);
-    this.myPeer = new Peer(sanitizedId);
+    
+    // PeerJS configuration with reconnection options
+    this.myPeer = new Peer(sanitizedId, {
+      host: import.meta.env.VITE_PEER_HOST || 'localhost',
+      port: parseInt(import.meta.env.VITE_PEER_PORT || '9000'),
+      path: '/metadesk',
+      debug: 3,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478' }
+        ]
+      }
+    });
+    this.myPeer = new Peer(sanitizedId, {
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478' }
+        ],
+        iceCandidatePoolSize: 10,
+      },
+      debug: 3 // Log everything for debugging
+    });
+
     console.log("WebRTC initialized:", { userId, sanitizedId });
+
     this.myPeer.on("error", (err) => {
       console.error("PeerJS error:", err.type, err);
+      if (err.type === 'network' || err.type === 'disconnected') {
+        console.log("Attempting to reconnect PeerJS...");
+        this.myPeer.reconnect();
+      }
+    });
+
+    this.myPeer.on("disconnected", () => {
+      console.log("PeerJS disconnected, attempting to reconnect...");
+      this.myPeer.reconnect();
+    });
+
+    this.myPeer.on("close", () => {
+      console.log("PeerJS connection closed");
     });
     this.myVideo.muted = true;
     this.initialize();
@@ -123,11 +161,13 @@ export default class WebRTC {
     const call = this.myPeer.call(sanitizedId, this.myStream);
     const video = document.createElement("video");
     this.peers.set(sanitizedId, { call, video });
-    call.on("stream", (userVideoStream) => {
+    
+    call.on("stream", (userVideoStream: MediaStream) => {
       console.log("Received stream from:", sanitizedId);
       this.addVideoStream(video, userVideoStream);
     });
-    call.on("error", (error) => {
+    
+    call.on("error", (error: Error) => {
       console.error("Call error:", error);
       this.deleteVideoStream(sanitizedId);
     });

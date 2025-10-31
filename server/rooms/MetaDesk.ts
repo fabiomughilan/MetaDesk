@@ -25,19 +25,20 @@ export class MetaDesk extends Room<OfficeState> {
   maxClients = 16
 
   async onCreate(options: IRoomData): Promise<void> {
-    const { name, description, password, autoDispose } = options
-    this.name = name
-    this.description = description
-    this.autoDispose = autoDispose
-    this.setSeatReservationTime(15)
+    const { name, description, password, autoDispose } = options;
+    this.name = name;
+    this.description = description;
+    this.autoDispose = autoDispose;
+    this.setSeatReservationTime(15);
 
-    let hasPassword = false
+    let hasPassword = false;
     if (password) {
-      const salt = await bcrypt.genSalt(10)
-      this.password = await bcrypt.hash(password, salt)
-      hasPassword = true
+      const salt = await bcrypt.genSalt(10);
+      this.password = await bcrypt.hash(password, salt);
+      hasPassword = true;
     }
-    this.setMetadata({ name, description, hasPassword })
+    this.setMetadata({ name, description, hasPassword });
+    this.setState(new OfficeState());
 
     this.setState(new OfficeState())
 
