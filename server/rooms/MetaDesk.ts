@@ -30,7 +30,7 @@ export class MetaDesk extends Room<OfficeState> {
     this.description = description;
     this.autoDispose = autoDispose;
     // Set longer seat reservation time to handle slow connections and authentication
-    this.setSeatReservationTime(60);
+    this.setSeatReservationTime(120); // 2 minutes to handle slow connections
 
     let hasPassword = false;
     if (password) {

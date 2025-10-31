@@ -230,8 +230,6 @@ export default class Network {
     } catch (error) {
       console.error('Failed to join custom room:', error);
       await this.retryRoomConnection(() => this.client.joinById(roomId, { password }));
-      console.error('Failed to join room:', error)
-      await this.retryRoomConnection(() => this.client.joinById(roomId, { password }))
     }
   }
 
@@ -247,7 +245,7 @@ export default class Network {
         password,
         autoDispose,
       })
-      this.initialize()
+      await this.initialize()
     } catch (error) {
       console.error('Failed to create room:', error)
       await this.retryRoomConnection(() => 
@@ -268,13 +266,23 @@ export default class Network {
     }
 
     try {
-      const delay = Math.min(this.retryDelay * Math.pow(2, attempt - 1), 10000)
+      // Shorter delay for seat reservation issues
+      const delay = Math.min(1000 * attempt, 5000) // 1s, 2s, 3s, 4s, 5s max
+      console.log(`Retrying room connection in ${delay}ms (attempt ${attempt}/${this.maxRetries})`)
       await new Promise(resolve => setTimeout(resolve, delay))
+      
       this.room = await connectFn()
-      this.initialize()
+      await this.initialize()
     } catch (error) {
       console.warn(`Room connection attempt ${attempt}/${this.maxRetries} failed:`, error)
-      await this.retryRoomConnection(connectFn, attempt + 1)
+      
+      // If it's a seat reservation error, retry immediately
+      if (error instanceof Error && error.message.includes('seat reservation')) {
+        console.log('Seat reservation expired, retrying immediately...')
+        await this.retryRoomConnection(connectFn, attempt + 1)
+      } else {
+        await this.retryRoomConnection(connectFn, attempt + 1)
+      }
     }
   }
 
@@ -301,32 +309,34 @@ export default class Network {
       })
 
       // Wait for room state to be fully initialized
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Room state initialization timeout'))
+        }, 10000) // 10 second timeout
+
         this.room?.onStateChange.once(() => {
+          clearTimeout(timeout)
           console.log("Room state initialized:", this.room?.state)
-          this.webRTC = new WebRTC(this.mySessionId, this)
+          
+          // Only create WebRTC if it doesn't exist
+          if (!this.webRTC) {
+            this.webRTC = new WebRTC(this.mySessionId, this)
+          }
+          
           this.setupStateListeners()
           this.ready = true
           this.connecting = false
           resolve()
         })
       })
+
+      console.log('Room initialization completed successfully')
     } catch (error) {
       console.error('Failed to initialize room:', error)
       this.connecting = false
       this.ready = false
       throw error
     }
-
-    // Wait for room state to be fully initialized
-    await new Promise<void>((resolve) => {
-      this.room?.onStateChange.once(() => {
-        console.log("Room state initialized:", this.room?.state)
-        this.webRTC = new WebRTC(this.mySessionId, this)
-        this.setupStateListeners()
-        resolve()
-      })
-    })
   }
 
   private setupStateListeners = () => {
