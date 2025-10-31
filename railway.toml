@@ -15,9 +15,7 @@
 # Environment variables - FORCE DISABLE SEAT RESERVATIONS
 [env]
   NODE_ENV = "production"
+  PORT = "8080"
   DISABLE_SEAT_RESERVATIONS = "true"
   FORCE_NO_RESERVATIONS = "true"
   RAILWAY_DEPLOYMENT_VERSION = "nuclear-v3"
-[env]
-  NODE_ENV = "production"
-  PORT = "8080"
