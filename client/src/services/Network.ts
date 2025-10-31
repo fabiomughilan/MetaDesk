@@ -343,7 +343,13 @@ export default class Network {
 
         this.room?.onStateChange.once(() => {
           clearTimeout(timeout)
-          console.log("Room state initialized:", this.room?.state)
+          console.log("🏠 Room state initialized!")
+          console.log("📊 Room details:", {
+            roomId: this.room?.id,
+            sessionId: this.room?.sessionId,
+            playerCount: this.room?.state?.players?.size || 0,
+            players: this.room?.state?.players ? Array.from(this.room.state.players.keys()) : []
+          })
           
           // Only create WebRTC if it doesn't exist
           if (!this.webRTC) {
@@ -371,16 +377,26 @@ export default class Network {
 
     // new instance added to the players MapSchema
     this.room.state.players.onAdd = (player: IPlayer, key: string) => {
-      if (key === this.mySessionId) return
+      console.log('🧑‍🤝‍🧑 Player added to room:', { key, player, isMe: key === this.mySessionId })
+      
+      if (key === this.mySessionId) {
+        console.log('👤 This is my own player, ignoring')
+        return
+      }
 
+      console.log('👥 Setting up remote player:', key)
+      
       // track changes on every child object inside the players MapSchema
       player.onChange = (changes) => {
+        console.log('🔄 Player state changed:', { key, changes })
         changes.forEach((change) => {
           const { field, value } = change
+          console.log('📝 Player field updated:', { key, field, value })
           phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
 
           // when a new player finished setting up player name
           if (field === 'name' && value !== '') {
+            console.log('✅ Player joined with name:', { key, name: value })
             phaserEvents.emit(Event.PLAYER_JOINED, player, key)
             store.dispatch(setPlayerNameMap({ id: key, name: value }))
             store.dispatch(pushPlayerJoinedMessage(value))
@@ -391,6 +407,7 @@ export default class Network {
 
     // an instance removed from the players MapSchema
     this.room.state.players.onRemove = (player: IPlayer, key: string) => {
+      console.log('👋 Player left room:', { key, playerName: player.name })
       phaserEvents.emit(Event.PLAYER_LEFT, key)
       this.webRTC?.deleteVideoStream(key)
       this.webRTC?.deleteOnCalledVideoStream(key)
