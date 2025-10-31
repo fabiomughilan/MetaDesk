@@ -82,13 +82,13 @@ export default class Network {
   private async connectWithRetry(attempt: number = 1) {
     try {
       console.log(`Connection attempt ${attempt}/${this.maxRetries}...`)
-      await this.joinLobbyRoom()
+      console.log('🎯 Skipping lobby - connecting directly to public room...')
+      
+      // Skip lobby entirely - go straight to public room to avoid seat reservations
+      await this.joinOrCreatePublic()
       store.dispatch(setLobbyJoined(true))
-      console.log('Successfully connected to lobby')
-      // If we succeed, try to reconnect to the previous room
-      if (this.lastRoomType) {
-        await this.attemptReconnection()
-      }
+      console.log('✅ Successfully connected to public room (bypassed lobby)')
+      
     } catch (error) {
       console.warn(`Connection attempt ${attempt}/${this.maxRetries} failed:`, error)
       if (attempt < this.maxRetries) {
