@@ -11,15 +11,32 @@ const Backdrop = styled.div`
   position: fixed;
   top: 0;
   left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `
 
 const Wrapper = styled.div`
-  width: 100%;
-  height: 100%;
-  padding: 16px;
+  background: rgba(0, 0, 0, 0.85);
+  padding: 32px;
+  border-radius: 16px;
   position: relative;
   display: flex;
   flex-direction: column;
+  gap: 16px;
+  min-width: 300px;
+
+  .MuiAlert-root {
+    margin-bottom: 16px;
+  }
+
+  .MuiButton-root {
+    font-size: 1.2em;
+    padding: 12px;
+  }
 `
 
 export default function VideoConnectionDialog() {
