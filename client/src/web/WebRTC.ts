@@ -14,7 +14,7 @@ export default class WebRTC {
   private peers: Map<string, VideoConnection>;
   private onCalledPeers: Map<string, VideoConnection>;
   private videoGrid: HTMLElement;
-  private buttonGrid: HTMLElement;
+  private buttonGrid?: HTMLElement;
   private myVideo: HTMLVideoElement;
   private myStream?: MediaStream;
   private network: Network;
@@ -25,7 +25,6 @@ export default class WebRTC {
     this.myVideo = document.createElement("video");
     this.network = network;
     this.videoGrid = this.createOrGetElement("video-grid");
-    this.buttonGrid = this.createOrGetElement("button-grid");
     const sanitizedId = this.replaceInvalidId(userId);
     this.myPeer = new Peer(sanitizedId);
     console.log("WebRTC initialized:", { userId, sanitizedId });
@@ -166,34 +165,97 @@ export default class WebRTC {
   }
 
   private setUpButtons(): void {
+    // Create button grid only when needed
+    if (!this.buttonGrid) {
+      this.buttonGrid = this.createOrGetElement("button-grid");
+    }
     this.buttonGrid.innerHTML = "";
     
     const audioButton = document.createElement("button");
-    audioButton.innerText = "Mute";
+    audioButton.setAttribute('title', 'Mute microphone');
+    const audioIcon = document.createElement('span');
+    audioIcon.className = 'material-icons';
+    audioIcon.textContent = 'mic';
+    audioButton.appendChild(audioIcon);
     audioButton.addEventListener("click", () => {
       if (this.myStream) {
         const audioTrack = this.myStream.getAudioTracks()[0];
         if (audioTrack) {
           audioTrack.enabled = !audioTrack.enabled;
-          audioButton.innerText = audioTrack.enabled ? "Mute" : "Unmute";
+          audioIcon.textContent = audioTrack.enabled ? 'mic' : 'mic_off';
           audioButton.classList.toggle("muted", !audioTrack.enabled);
         }
       }
     });
     
-    const videoButton = document.createElement("button");
-    videoButton.innerText = "Video off";
-    videoButton.addEventListener("click", () => {
-      if (this.myStream) {
-        const videoTrack = this.myStream.getVideoTracks()[0];
-        if (videoTrack) {
-          videoTrack.enabled = !videoTrack.enabled;
-          videoButton.innerText = videoTrack.enabled ? "Video off" : "Video on";
-          videoButton.classList.toggle("muted", !videoTrack.enabled);
-        }
-      }
-    });
+    const videoButton = document.createElement('button');
+    videoButton.setAttribute('title', 'Turn off camera');
+    const videoIcon = document.createElement('span');
+    videoIcon.className = 'material-icons';
+    videoIcon.textContent = 'videocam';
+    videoButton.appendChild(videoIcon);
+    videoButton.addEventListener('click', () => {
+      if (!this.myStream) return
 
+      try {
+        const videoTrack = this.myStream.getVideoTracks()[0]
+        if (videoTrack?.enabled) {
+          // Stop and remove existing video track
+          videoTrack.stop()
+          this.myStream.removeTrack(videoTrack)
+          this.myVideo.srcObject = null
+          videoIcon.textContent = 'videocam_off'
+          videoButton.classList.add('muted')
+        } else {
+          // Re-acquire camera access
+          navigator.mediaDevices.getUserMedia({ video: true })
+            .then(newStream => {
+              try {
+                const newVideoTrack = newStream.getVideoTracks()[0]
+                if (!newVideoTrack) throw new Error('No video track in new stream')
+
+                // Keep existing audio track if it exists
+                const audioTrack = this.myStream?.getAudioTracks()[0]
+                
+                // Create new stream with new video track and existing audio
+                this.myStream = new MediaStream()
+                if (audioTrack) {
+                  this.myStream.addTrack(audioTrack)
+                }
+                this.myStream.addTrack(newVideoTrack)
+                
+                // Update video element
+                this.myVideo.srcObject = this.myStream
+                
+                // Update all peer connections with the new track
+                this.peers.forEach(peer => {
+                  if (peer.call.peerConnection) {
+                    const sender = peer.call.peerConnection.getSenders()
+                      .find(s => s.track?.kind === 'video')
+                    if (sender) {
+                      sender.replaceTrack(newVideoTrack)
+                        .catch(err => console.error('Failed to replace video track:', err))
+                    }
+                  }
+                })
+              
+                videoButton.innerText = 'Video off'
+                videoButton.classList.remove('muted')
+              } catch (err) {
+                console.error('Error setting up new video track:', err)
+                videoButton.classList.add('muted')
+              }
+            })
+            .catch(err => {
+              console.error('Failed to re-acquire camera:', err)
+              videoButton.classList.add('muted')
+            })
+        }
+      } catch (err) {
+        console.error('Error toggling video:', err)
+        videoButton.classList.add('muted')
+      }
+    })
     // Check initial track states
     if (this.myStream) {
       const audioTrack = this.myStream.getAudioTracks()[0];
