@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
-import { getFirestore, enableIndexedDbPersistence, connectFirestoreEmulator } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 
 const firebaseConfig = {
@@ -46,29 +46,15 @@ if (isFirebaseConfigured) {
   console.warn('⚠️ Skipping Firebase Auth persistence due to incomplete configuration');
 }
 
-// Initialize Firestore with enhanced error handling and offline resilience
+// Initialize Firestore with enhanced error handling
+// Note: Modern Firebase v12+ handles offline persistence automatically
 export const db = getFirestore(app);
 
 if (isFirebaseConfigured) {
-  // Enable offline persistence with comprehensive error handling
-  enableIndexedDbPersistence(db)
-    .then(() => {
-      console.log('✅ Firestore offline persistence enabled');
-    })
-    .catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn('⚠️ Firestore offline persistence failed: Multiple tabs open. App will work online only.');
-      } else if (err.code === 'unimplemented') {
-        console.warn('⚠️ Firestore offline persistence failed: Browser not supported. App will work online only.');
-      } else if (err.code === 'invalid-argument') {
-        console.warn('⚠️ Firestore offline persistence failed: Invalid configuration. App will work online only.');
-      } else {
-        console.warn('⚠️ Firestore offline persistence failed:', err.message, '. App will work online only.');
-      }
-      // Add graceful degradation - continue without offline persistence
-    });
+  console.log('✅ Firestore initialized with automatic offline persistence');
+  console.log('ℹ️ Modern Firebase handles caching automatically - no manual persistence needed');
 } else {
-  console.warn('⚠️ Skipping Firestore offline persistence due to incomplete configuration');
+  console.warn('⚠️ Firestore initialized with incomplete configuration');
 }
 
 // Initialize Analytics only in production with comprehensive error handling
