@@ -167,6 +167,7 @@ export default class WebRTC {
 
   private setUpButtons(): void {
     this.buttonGrid.innerHTML = "";
+    
     const audioButton = document.createElement("button");
     audioButton.innerText = "Mute";
     audioButton.addEventListener("click", () => {
@@ -175,9 +176,11 @@ export default class WebRTC {
         if (audioTrack) {
           audioTrack.enabled = !audioTrack.enabled;
           audioButton.innerText = audioTrack.enabled ? "Mute" : "Unmute";
+          audioButton.classList.toggle("muted", !audioTrack.enabled);
         }
       }
     });
+    
     const videoButton = document.createElement("button");
     videoButton.innerText = "Video off";
     videoButton.addEventListener("click", () => {
@@ -186,9 +189,23 @@ export default class WebRTC {
         if (videoTrack) {
           videoTrack.enabled = !videoTrack.enabled;
           videoButton.innerText = videoTrack.enabled ? "Video off" : "Video on";
+          videoButton.classList.toggle("muted", !videoTrack.enabled);
         }
       }
     });
+
+    // Check initial track states
+    if (this.myStream) {
+      const audioTrack = this.myStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioButton.classList.toggle("muted", !audioTrack.enabled);
+      }
+      const videoTrack = this.myStream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoButton.classList.toggle("muted", !videoTrack.enabled);
+      }
+    }
+
     this.buttonGrid.append(audioButton, videoButton);
   }
 }

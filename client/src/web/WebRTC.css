@@ -20,19 +20,46 @@
     right: 20px;
     bottom: 180px;
     display: flex;
-    gap: 10px;
+    gap: 12px;
     z-index: 1000;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 8px;
+    border-radius: 8px;
+    backdrop-filter: blur(4px);
 }
 
 .button-grid button {
-    padding: 8px 16px;
-    border-radius: 4px;
-    background: #444;
+    min-width: 100px;
+    padding: 10px 16px;
+    border-radius: 6px;
+    background: #2196f3;
     color: white;
     border: none;
     cursor: pointer;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .button-grid button:hover {
-    background: #555;
+    background: #1976d2;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.button-grid button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Style for disabled/muted state */
+.button-grid button[disabled],
+.button-grid button.muted {
+    background: #dc3545;
 }

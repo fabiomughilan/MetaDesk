@@ -41,6 +41,37 @@ const Wrapper = styled.div`
 
 export default function VideoConnectionDialog() {
   const [connectionWarning, setConnectionWarning] = useState(true)
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const connectWebcam = async () => {
+    setIsConnecting(true)
+    setError(null)
+    try {
+      console.log('Attempting to connect webcam...')
+      const game = phaserGame.scene.keys.game as Game
+      if (!game?.network) {
+        console.log('Game not initialized, trying bootstrap scene...')
+        const bootstrap = phaserGame.scene.keys.bootstrap as any
+        if (bootstrap?.network?.webRTC) {
+          await bootstrap.network.webRTC.getUserMedia()
+        } else {
+          throw new Error('Network not initialized')
+        }
+      } else {
+        if (!game.network.webRTC) {
+          throw new Error('WebRTC not initialized')
+        }
+        await game.network.webRTC.getUserMedia()
+      }
+    } catch (err) {
+      console.error('Error connecting webcam:', err)
+      setError(err instanceof Error ? err.message : 'Failed to connect webcam')
+    } finally {
+      setIsConnecting(false)
+    }
+  }
+
   return (
     <Backdrop>
       <Wrapper>
@@ -56,15 +87,19 @@ export default function VideoConnectionDialog() {
             <br /> <strong>connect one for full experience!</strong>
           </Alert>
         )}
+        {error && (
+          <Alert severity="error" onClose={() => setError(null)}>
+            <AlertTitle>Error</AlertTitle>
+            {error}
+          </Alert>
+        )}
         <Button
           variant="contained"
           color="secondary"
-          onClick={() => {
-            const game = phaserGame.scene.keys.game as Game
-            game.network.webRTC?.getUserMedia()
-          }}
+          onClick={connectWebcam}
+          disabled={isConnecting}
         >
-          Connect Webcam
+          {isConnecting ? 'Connecting...' : 'Connect Webcam'}
         </Button>
       </Wrapper>
     </Backdrop>

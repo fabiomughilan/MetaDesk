@@ -93,6 +93,11 @@ export default class Network {
     
     this.client = new Client(endpoint)
 
+    // Initialize WebRTC early with a temporary ID
+    const tempId = 'temp-' + Math.random().toString(36).substr(2, 9)
+    console.log('Initializing WebRTC with temporary ID:', tempId)
+    this.webRTC = new WebRTC(tempId, this)
+
     // Attempt connection with retries
     this.connectWithRetry()
 
