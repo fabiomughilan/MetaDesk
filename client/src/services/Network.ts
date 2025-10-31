@@ -373,7 +373,26 @@ export default class Network {
   }
 
   private setupStateListeners = () => {
-    if (!this.room || !this.room.state) return
+    if (!this.room || !this.room.state) {
+      console.error('❌ Cannot setup state listeners - room or state is null')
+      return
+    }
+
+    console.log('🔧 Setting up state listeners...')
+    console.log('🔍 Current players in room:', {
+      totalPlayers: this.room.state.players.size,
+      playerKeys: Array.from(this.room.state.players.keys()),
+      mySessionId: this.mySessionId
+    })
+
+    // Check if there are already players in the room
+    this.room.state.players.forEach((player: IPlayer, key: string) => {
+      if (key !== this.mySessionId) {
+        console.log('🔄 Existing player found in room:', { key, playerName: player.name })
+        // Manually trigger the add event for existing players
+        this.handlePlayerAdd(player, key)
+      }
+    })
 
     // new instance added to the players MapSchema
     this.room.state.players.onAdd = (player: IPlayer, key: string) => {
@@ -384,25 +403,7 @@ export default class Network {
         return
       }
 
-      console.log('👥 Setting up remote player:', key)
-      
-      // track changes on every child object inside the players MapSchema
-      player.onChange = (changes) => {
-        console.log('🔄 Player state changed:', { key, changes })
-        changes.forEach((change) => {
-          const { field, value } = change
-          console.log('📝 Player field updated:', { key, field, value })
-          phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
-
-          // when a new player finished setting up player name
-          if (field === 'name' && value !== '') {
-            console.log('✅ Player joined with name:', { key, name: value })
-            phaserEvents.emit(Event.PLAYER_JOINED, player, key)
-            store.dispatch(setPlayerNameMap({ id: key, name: value }))
-            store.dispatch(pushPlayerJoinedMessage(value))
-          }
-        })
-      }
+      this.handlePlayerAdd(player, key)
     }
 
     // an instance removed from the players MapSchema
@@ -468,6 +469,28 @@ export default class Network {
       const computerState = store.getState().computer
       computerState.shareScreenManager?.onUserLeft(clientId)
     })
+  }
+
+  private handlePlayerAdd = (player: IPlayer, key: string) => {
+    console.log('👥 Setting up remote player:', key)
+    
+    // track changes on every child object inside the players MapSchema
+    player.onChange = (changes) => {
+      console.log('🔄 Player state changed:', { key, changes })
+      changes.forEach((change) => {
+        const { field, value } = change
+        console.log('📝 Player field updated:', { key, field, value })
+        phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
+
+        // when a new player finished setting up player name
+        if (field === 'name' && value !== '') {
+          console.log('✅ Player joined with name:', { key, name: value })
+          phaserEvents.emit(Event.PLAYER_JOINED, player, key)
+          store.dispatch(setPlayerNameMap({ id: key, name: value }))
+          store.dispatch(pushPlayerJoinedMessage(value))
+        }
+      })
+    }
   }
 
   // method to register event listener and call back function when a item user added
