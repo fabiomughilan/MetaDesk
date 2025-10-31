@@ -1,11 +1,11 @@
-import Peer from "peerjs";
+import Peer, { type MediaConnection } from "peerjs";
 import Network from "../services/Network";
 import store from "../stores";
 import { setVideoConnected } from "../stores/UserStore";
 import "./WebRTC.css";
 
 interface VideoConnection {
-  call: Peer.MediaConnection;
+  call: MediaConnection;
   video: HTMLVideoElement;
 }
 

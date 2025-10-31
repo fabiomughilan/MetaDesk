@@ -1,15 +1,15 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
-import { IOfficeState } from '../../../types/IOfficeState'
 import { ChatMessage } from '../schema/OfficeState'
 import { ArraySchema } from '@colyseus/schema'
+import { MetaDesk } from '../MetaDesk'
 
 type Payload = {
   client: Client
   content: string
 }
 
-export default class ChatMessageUpdateCommand extends Command<IOfficeState, Payload> {
+export default class ChatMessageUpdateCommand extends Command<MetaDesk, Payload> {
   execute(data: Payload) {
     const { client, content } = data
     const player = this.room.state.players.get(client.sessionId)

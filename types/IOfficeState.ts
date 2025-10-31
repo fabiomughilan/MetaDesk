@@ -8,7 +8,6 @@ export interface IPlayer extends Schema {
   anim: string;
   readyToConnect: boolean;
   videoConnected: boolean;
-  onChange?: (changes: Array<any>) => void;
 }
 
 export interface IComputer {

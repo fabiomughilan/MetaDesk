@@ -208,7 +208,7 @@ export default class Network {
       this.lastRoomData = null;
       
       this.room = await this.client.joinOrCreate(RoomType.PUBLIC);
-      console.log('Successfully joined/created public room:', this.room.id);
+      console.log('Successfully joined/created public room:', this.room.roomId);
       
       // Start Firebase session tracking
       await this.startRoomSession();
@@ -359,7 +359,7 @@ export default class Network {
           clearTimeout(timeout)
           console.log("🏠 Room state initialized!")
           console.log("📊 Room details:", {
-            roomId: this.room?.id,
+            roomId: this.room?.roomId,
             sessionId: this.room?.sessionId,
             playerCount: this.room?.state?.players?.size || 0,
             players: this.room?.state?.players ? Array.from(this.room.state.players.keys()) : []
@@ -409,7 +409,7 @@ export default class Network {
     })
 
     // new instance added to the players MapSchema
-    this.room.state.players.onAdd = (player: IPlayer, key: string) => {
+    this.room.state.players.onAdd((player: IPlayer, key: string) => {
       console.log('🧑‍🤝‍🧑 Player added to room:', { key, player, isMe: key === this.mySessionId })
       
       if (key === this.mySessionId) {
@@ -418,31 +418,31 @@ export default class Network {
       }
 
       this.handlePlayerAdd(player, key)
-    }
+    })
 
     // an instance removed from the players MapSchema
-    this.room.state.players.onRemove = (player: IPlayer, key: string) => {
+    this.room.state.players.onRemove((player: IPlayer, key: string) => {
       console.log('👋 Player left room:', { key, playerName: player.name })
       phaserEvents.emit(Event.PLAYER_LEFT, key)
       this.webRTC?.deleteVideoStream(key)
       this.webRTC?.deleteOnCalledVideoStream(key)
       store.dispatch(pushPlayerLeftMessage(player.name))
       store.dispatch(removePlayerNameMap(key))
-    }
+    })
 
     // new instance added to the computers MapSchema
-    this.room.state.computers.onAdd = (computer: IComputer, key: string) => {
+    this.room.state.computers.onAdd((computer: IComputer, key: string) => {
       // track changes on every child object's connectedUser
-      computer.connectedUser.onAdd = (item, index) => {
+      computer.connectedUser.onAdd((item, index) => {
         phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.COMPUTER)
-      }
-      computer.connectedUser.onRemove = (item, index) => {
+      })
+      computer.connectedUser.onRemove((item, index) => {
         phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.COMPUTER)
-      }
-    }
+      })
+    })
 
     // new instance added to the whiteboards MapSchema
-    this.room.state.whiteboards.onAdd = (whiteboard: IWhiteboard, key: string) => {
+    this.room.state.whiteboards.onAdd((whiteboard: IWhiteboard, key: string) => {
       store.dispatch(
         setWhiteboardUrls({
           whiteboardId: key,
@@ -450,18 +450,18 @@ export default class Network {
         })
       )
       // track changes on every child object's connectedUser
-      whiteboard.connectedUser.onAdd = (item, index) => {
+      whiteboard.connectedUser.onAdd((item, index) => {
         phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.WHITEBOARD)
-      }
-      whiteboard.connectedUser.onRemove = (item, index) => {
+      })
+      whiteboard.connectedUser.onRemove((item, index) => {
         phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.WHITEBOARD)
-      }
-    }
+      })
+    })
 
     // new instance added to the chatMessages ArraySchema
-    this.room.state.chatMessages.onAdd = (item, index) => {
+    this.room.state.chatMessages.onAdd((item, index) => {
       store.dispatch(pushChatMessage(item))
-    }
+    })
 
     // when the server sends room data
     this.room.onMessage(Message.SEND_ROOM_DATA, (content) => {
@@ -489,22 +489,45 @@ export default class Network {
     console.log('👥 Setting up remote player:', key)
     
     // track changes on every child object inside the players MapSchema
-    player.onChange = (changes) => {
-      console.log('🔄 Player state changed:', { key, changes })
-      changes.forEach((change) => {
-        const { field, value } = change
-        console.log('📝 Player field updated:', { key, field, value })
-        phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
+    player.onChange(() => {
+      console.log('🔄 Player state changed:', { key })
+      // Note: specific field changes now handled by .listen() calls below
+    })
 
-        // when a new player finished setting up player name
-        if (field === 'name' && value !== '') {
-          console.log('✅ Player joined with name:', { key, name: value })
-          phaserEvents.emit(Event.PLAYER_JOINED, player, key)
-          store.dispatch(setPlayerNameMap({ id: key, name: value }))
-          store.dispatch(pushPlayerJoinedMessage(value))
-        }
-      })
-    }
+    // Listen for specific field changes using the new API
+    player.listen('name', (value) => {
+      console.log('📝 Player name updated:', { key, value })
+      phaserEvents.emit(Event.PLAYER_UPDATED, 'name', value, key)
+      
+      // when a new player finished setting up player name
+      if (value !== '') {
+        console.log('✅ Player joined with name:', { key, name: value })
+        phaserEvents.emit(Event.PLAYER_JOINED, player, key)
+        store.dispatch(setPlayerNameMap({ id: key, name: value }))
+        store.dispatch(pushPlayerJoinedMessage(value))
+      }
+    })
+
+    // Listen for other player properties
+    player.listen('x', (value) => {
+      phaserEvents.emit(Event.PLAYER_UPDATED, 'x', value, key)
+    })
+    
+    player.listen('y', (value) => {
+      phaserEvents.emit(Event.PLAYER_UPDATED, 'y', value, key)
+    })
+    
+    player.listen('anim', (value) => {
+      phaserEvents.emit(Event.PLAYER_UPDATED, 'anim', value, key)
+    })
+    
+    player.listen('readyToConnect', (value) => {
+      phaserEvents.emit(Event.PLAYER_UPDATED, 'readyToConnect', value, key)
+    })
+    
+    player.listen('videoConnected', (value) => {
+      phaserEvents.emit(Event.PLAYER_UPDATED, 'videoConnected', value, key)
+    })
   }
 
   // method to register event listener and call back function when a item user added
@@ -645,7 +668,7 @@ export default class Network {
       await startRoomSession(
         currentUser.uid,
         currentUser.displayName || 'Anonymous',
-        this.room.id,
+        this.room.roomId,
         'MetaDesk Office'
       );
 
@@ -659,7 +682,7 @@ export default class Network {
     try {
       if (!this.room) return;
 
-      const chatHistory = await getChatHistory(this.room.id, 50);
+      const chatHistory = await getChatHistory(this.room.roomId, 50);
       
       // Load historical messages into the chat store
       chatHistory.forEach(message => {
@@ -684,7 +707,7 @@ export default class Network {
       if (!currentUser) return;
 
       await saveChatMessage({
-        roomId: this.room.id,
+        roomId: this.room.roomId,
         authorId: currentUser.uid,
         authorName: message.author,
         content: message.content,
