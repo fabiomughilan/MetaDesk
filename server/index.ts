@@ -13,7 +13,11 @@ import { MetaDesk } from './rooms/MetaDesk'
 const port = Number(process.env.PORT || 2567)
 const app = express()
 
-app.use(cors())
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://workdesk24.netlify.app/']  // Replace with your Netlify URL
+    : true
+}))
 app.use(express.json())
 // app.use(express.static('dist'))
 
