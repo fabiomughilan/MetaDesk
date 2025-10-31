@@ -1,0 +1,18 @@
+# Railway configuration for MetaDesk server
+# This file tells Railway how to build and deploy the server
+
+# Build configuration
+[build]
+  builder = "nixpacks"
+  buildCommand = "npm run build:server"
+
+# Deploy configuration  
+[deploy]
+  startCommand = "npm start"
+  restartPolicyType = "on_failure"
+  restartPolicyMaxRetries = 3
+
+# Environment variables
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
