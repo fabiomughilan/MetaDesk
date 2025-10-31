@@ -2,6 +2,7 @@ import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
 import { IOfficeState } from '../../../types/IOfficeState'
 import { ChatMessage } from '../schema/OfficeState'
+import { ArraySchema } from '@colyseus/schema'
 
 type Payload = {
   client: Client
@@ -14,7 +15,7 @@ export default class ChatMessageUpdateCommand extends Command<IOfficeState, Payl
     const player = this.room.state.players.get(client.sessionId)
     const chatMessages = this.room.state.chatMessages
 
-    if (!chatMessages) return
+    if (!chatMessages || !player) return
 
     /**
      * Only allow server to store a maximum of 100 chat messages:
@@ -25,6 +26,7 @@ export default class ChatMessageUpdateCommand extends Command<IOfficeState, Payl
     const newMessage = new ChatMessage()
     newMessage.author = player.name
     newMessage.content = content
+    newMessage.createdAt = new Date().getTime()
     chatMessages.push(newMessage)
   }
 }
