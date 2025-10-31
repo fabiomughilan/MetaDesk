@@ -29,7 +29,8 @@ export class MetaDesk extends Room<OfficeState> {
     this.name = name;
     this.description = description;
     this.autoDispose = autoDispose;
-    this.setSeatReservationTime(15);
+    // Set longer seat reservation time to handle slow connections and authentication
+    this.setSeatReservationTime(60);
 
     let hasPassword = false;
     if (password) {
@@ -39,8 +40,6 @@ export class MetaDesk extends Room<OfficeState> {
     }
     this.setMetadata({ name, description, hasPassword });
     this.setState(new OfficeState());
-
-    this.setState(new OfficeState())
 
     // HARD-CODED: Add 5 computers in a room
     for (let i = 0; i < 5; i++) {
