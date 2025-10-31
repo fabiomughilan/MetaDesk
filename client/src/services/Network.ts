@@ -27,6 +27,8 @@ export default class Network {
   private lobby!: Room;
   webRTC?: WebRTC;
   private ready: boolean = false;
+  private connecting: boolean = false;
+  private disconnecting: boolean = false;
 
   mySessionId!: string;
   private maxRetries = 5
@@ -190,19 +192,43 @@ export default class Network {
 
   // set up all network listeners before the game starts
   async initialize() {
-    if (!this.room) return
+    if (!this.room || this.connecting || this.disconnecting) return
 
-    this.mySessionId = this.room.sessionId
-    store.dispatch(setSessionId(this.room.sessionId))
+    this.connecting = true
+    this.ready = false
 
-    // Setup reconnection handling
-    this.room.onLeave((code) => {
-      console.log('Left room:', code)
-      if (code > 1000) {
-        console.log('Attempting to reconnect...')
-        this.attemptReconnection()
-      }
-    })
+    try {
+      this.mySessionId = this.room.sessionId
+      store.dispatch(setSessionId(this.room.sessionId))
+
+      // Setup reconnection handling
+      this.room.onLeave((code) => {
+        console.log('Left room:', code)
+        this.ready = false
+        this.disconnecting = false
+        if (code > 1000 && !this.connecting) {
+          console.log('Attempting to reconnect...')
+          this.attemptReconnection()
+        }
+      })
+
+      // Wait for room state to be fully initialized
+      await new Promise<void>((resolve) => {
+        this.room?.onStateChange.once(() => {
+          console.log("Room state initialized:", this.room?.state)
+          this.webRTC = new WebRTC(this.mySessionId, this)
+          this.setupStateListeners()
+          this.ready = true
+          this.connecting = false
+          resolve()
+        })
+      })
+    } catch (error) {
+      console.error('Failed to initialize room:', error)
+      this.connecting = false
+      this.ready = false
+      throw error
+    }
 
     // Wait for room state to be fully initialized
     await new Promise<void>((resolve) => {
@@ -353,18 +379,33 @@ export default class Network {
 
   // method to send player updates to Colyseus server
   updatePlayer(currentX: number, currentY: number, currentAnim: string) {
-    this.room?.send(Message.UPDATE_PLAYER, { x: currentX, y: currentY, anim: currentAnim })
+    if (!this.ready || !this.room || this.connecting || this.disconnecting) return
+    try {
+      this.room.send(Message.UPDATE_PLAYER, { x: currentX, y: currentY, anim: currentAnim })
+    } catch (error) {
+      console.warn('Failed to send player update:', error)
+    }
   }
 
   // method to send player name to Colyseus server
   updatePlayerName(currentName: string) {
-    this.room?.send(Message.UPDATE_PLAYER_NAME, { name: currentName })
+    if (!this.ready || !this.room || this.connecting || this.disconnecting) return
+    try {
+      this.room.send(Message.UPDATE_PLAYER_NAME, { name: currentName })
+    } catch (error) {
+      console.warn('Failed to send player name update:', error)
+    }
   }
 
   // method to send ready-to-connect signal to Colyseus server
   readyToConnect() {
-    this.room?.send(Message.READY_TO_CONNECT)
-    phaserEvents.emit(Event.MY_PLAYER_READY)
+    if (!this.ready || !this.room || this.connecting || this.disconnecting) return
+    try {
+      this.room.send(Message.READY_TO_CONNECT)
+      phaserEvents.emit(Event.MY_PLAYER_READY)
+    } catch (error) {
+      console.warn('Failed to send ready to connect signal:', error)
+    }
   }
 
   // method to send ready-to-connect signal to Colyseus server
