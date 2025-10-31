@@ -24,8 +24,15 @@ export class MetaDeskPublic extends Room<OfficeState> {
   async onCreate(options: any = {}): Promise<void> {
     console.log(`🏢 MetaDeskPublic room created: ${this.roomId} - VERSION 2.0 NO RESERVATIONS`);
     
-    // NO SEAT RESERVATIONS - immediate join
+    // 🚨 NUCLEAR OPTION: Multiple layers of reservation disabling
+    console.log(`🚨 ENFORCING ZERO SEAT RESERVATIONS - NUCLEAR OPTION ACTIVATED!`);
     this.setSeatReservationTime(0); // Disable seat reservations entirely
+    
+    // Additional safety: Check global environment
+    if (process.env.DISABLE_SEAT_RESERVATIONS === 'true') {
+      console.log(`✅ Global environment confirms: NO SEAT RESERVATIONS`);
+    }
+    
     this.setPrivate(false);
     this.setMetadata({ name: "Public Lobby", description: "Open workspace", hasPassword: false });
     this.setState(new OfficeState());
@@ -123,9 +130,13 @@ export class MetaDeskPublic extends Room<OfficeState> {
     return true
   }
 
-  // NO RESERVATIONS - direct join
+  // NO RESERVATIONS - direct join with triple safety check
   onJoin(client: Client, options: any): void {
     console.log(`🚪 Client ${client.sessionId} joined public room ${this.roomId}`)
+    
+    // 🚨 EMERGENCY: Force zero reservations again in case of system override
+    this.setSeatReservationTime(0);
+    console.log(`🚨 EMERGENCY: Seat reservations re-disabled in onJoin for ${client.sessionId}`);
     
     try {
       client.send(Message.SEND_ROOM_DATA, {
@@ -137,6 +148,7 @@ export class MetaDeskPublic extends Room<OfficeState> {
       const player = new Player();
       this.state.players.set(client.sessionId, player);
       console.log(`✅ Player added successfully. Total players: ${this.state.players.size}/${this.maxClients}`)
+      console.log(`🔧 Room ${this.roomId} NO SEAT RESERVATIONS ENFORCED`)
     } catch (error) {
       console.error(`❌ Error in onJoin for client ${client.sessionId}:`, error)
     }

@@ -30,8 +30,15 @@ export class MetaDesk extends Room<OfficeState> {
     this.description = description;
     this.autoDispose = autoDispose;
     
-    // TEMPORARY FIX: Disable seat reservations completely to solve connection issues
-    this.setSeatReservationTime(0); // NO RESERVATIONS - immediate join
+    // 🚨 NUCLEAR OPTION: Check global environment override
+    if (process.env.DISABLE_SEAT_RESERVATIONS === 'true') {
+      console.log(`🚨 GLOBAL OVERRIDE: MetaDesk ${this.roomId} - ZERO seat reservations enforced`);
+      this.setSeatReservationTime(0); // Force zero reservations
+    } else {
+      // EMERGENCY FIX: Disable seat reservations completely to solve connection issues
+      this.setSeatReservationTime(0); // NO RESERVATIONS - immediate join
+    }
+    
     this.setPrivate(false); // Ensure room is discoverable
     
     console.log(`🏢 MetaDesk room created: ${this.roomId} - ${name} - NO RESERVATIONS MODE`);
@@ -177,6 +184,10 @@ export class MetaDesk extends Room<OfficeState> {
     console.log(`🚪 Client ${client.sessionId} joined room ${this.roomId}`)
     console.log(`👤 Adding player for client ${client.sessionId}`)
     
+    // 🚨 EMERGENCY: Force zero reservations again in case of system override
+    this.setSeatReservationTime(0);
+    console.log(`🚨 EMERGENCY: Seat reservations re-disabled in onJoin for ${client.sessionId}`);
+    
     try {
       client.send(Message.SEND_ROOM_DATA, {
         roomId: this.roomId,
@@ -187,6 +198,7 @@ export class MetaDesk extends Room<OfficeState> {
       const player = new Player();
       this.state.players.set(client.sessionId, player);
       console.log(`✅ Player added successfully. Total players: ${this.state.players.size}`)
+      console.log(`🔧 Room ${this.roomId} NO SEAT RESERVATIONS ENFORCED`)
     } catch (error) {
       console.error(`❌ Error in onJoin for client ${client.sessionId}:`, error)
       // Don't throw here, try to continue

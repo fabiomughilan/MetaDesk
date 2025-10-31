@@ -28,6 +28,11 @@ app.use(express.json())
 // app.use(express.static('dist'))
 
 const server = http.createServer(app)
+
+// 🚨 NUCLEAR OPTION: Set global environment to disable ALL seat reservations
+process.env.DISABLE_SEAT_RESERVATIONS = 'true'
+console.log('� GLOBAL OVERRIDE: All seat reservations DISABLED via environment!')
+
 const gameServer = new Server({
   transport: new WebSocketTransport({
     server,
