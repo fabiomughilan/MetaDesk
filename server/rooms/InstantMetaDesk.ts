@@ -19,11 +19,7 @@ export class InstantMetaDesk extends Room<OfficeState> {
   maxClients = 16
 
   async onCreate(options: any = {}): Promise<void> {
-    console.log(`🚀 InstantMetaDesk room created: ${this.roomId} - INSTANT JOIN NO RESERVATIONS`);
-    
-    // 🚨 INSTANT CONNECTION: No seat reservations whatsoever
-    // Don't even call setSeatReservationTime - avoid the system entirely
-    console.log(`⚡ INSTANT CONNECTION MODE: Bypassing ALL Colyseus reservation systems`);
+    console.log(`🚀 InstantMetaDesk room created: ${this.roomId}`);
     
     this.setPrivate(false);
     this.autoDispose = false;

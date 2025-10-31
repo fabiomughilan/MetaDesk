@@ -1,10 +1,17 @@
 import { Client, Room } from 'colyseus.js'
-import { IComputer, IOfficeState, IPlayer, IWhiteboard } from '../../../types/IOfficeState'
+import { IComputer, IOfficeState, IPlayer, IWhiteboard, IChatMessage } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
 import WebRTC from '../web/WebRTC'
 import { phaserEvents, Event } from '../events/EventCenter'
+import { 
+  saveChatMessage, 
+  getChatHistory, 
+  startRoomSession, 
+  endRoomSession 
+} from './FirestoreService'
+import { getCurrentUser } from './AuthService'
 import store from '../stores'
 import { setSessionId, setPlayerNameMap, removePlayerNameMap } from '../stores/UserStore'
 import {
@@ -38,6 +45,7 @@ export default class Network {
   private reconnectTimer?: NodeJS.Timeout;
   private connecting: boolean = false;
   private disconnecting: boolean = false;
+  private currentSessionId?: string; // Track current room session
 
   private scheduleReconnect() {
     if (this.reconnectTimer) {
@@ -201,6 +209,12 @@ export default class Network {
       
       this.room = await this.client.joinOrCreate(RoomType.PUBLIC);
       console.log('Successfully joined/created public room:', this.room.id);
+      
+      // Start Firebase session tracking
+      await this.startRoomSession();
+      
+      // Load chat history
+      await this.loadChatHistory();
       
       // Set up room event handlers
       this.room.onStateChange((state) => {
@@ -607,5 +621,92 @@ export default class Network {
 
   addChatMessage(content: string) {
     this.room?.send(Message.ADD_CHAT_MESSAGE, { content: content })
+    
+    // Save to Firestore - create IChatMessage object
+    const currentUser = getCurrentUser();
+    if (currentUser) {
+      const chatMessage: IChatMessage = {
+        author: currentUser.displayName || 'Anonymous',
+        content: content,
+        createdAt: Date.now()
+      };
+      this.saveChatToFirestore(chatMessage);
+    }
+  }
+
+  // Firebase session tracking methods
+  private async startRoomSession(): Promise<void> {
+    try {
+      if (!this.room) return;
+
+      const currentUser = getCurrentUser();
+      if (!currentUser) return;
+
+      await startRoomSession(
+        currentUser.uid,
+        currentUser.displayName || 'Anonymous',
+        this.room.id,
+        'MetaDesk Office'
+      );
+
+      console.log('🏁 Room session started in Firestore');
+    } catch (error) {
+      console.error('❌ Error starting room session:', error);
+    }
+  }
+
+  private async loadChatHistory(): Promise<void> {
+    try {
+      if (!this.room) return;
+
+      const chatHistory = await getChatHistory(this.room.id, 50);
+      
+      // Load historical messages into the chat store
+      chatHistory.forEach(message => {
+        store.dispatch(pushChatMessage({
+          author: message.authorName,
+          content: message.content,
+          createdAt: message.timestamp?.toDate?.().getTime() || Date.now()
+        }));
+      });
+
+      console.log(`💬 Loaded ${chatHistory.length} historical messages`);
+    } catch (error) {
+      console.error('❌ Error loading chat history:', error);
+    }
+  }
+
+  private async saveChatToFirestore(message: IChatMessage): Promise<void> {
+    try {
+      if (!this.room) return;
+
+      const currentUser = getCurrentUser();
+      if (!currentUser) return;
+
+      await saveChatMessage({
+        roomId: this.room.id,
+        authorId: currentUser.uid,
+        authorName: message.author,
+        content: message.content,
+        type: 'message'
+      });
+
+      console.log('💾 Chat message saved to Firestore');
+    } catch (error) {
+      console.error('❌ Error saving chat to Firestore:', error);
+    }
+  }
+
+  // End session when leaving room
+  private async endCurrentSession(): Promise<void> {
+    try {
+      if (this.currentSessionId) {
+        await endRoomSession(this.currentSessionId);
+        console.log('📊 Room session ended:', this.currentSessionId);
+        this.currentSessionId = undefined;
+      }
+    } catch (error) {
+      console.error('❌ Error ending room session:', error);
+    }
   }
 }

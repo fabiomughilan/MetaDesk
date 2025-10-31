@@ -30,13 +30,6 @@ app.use(express.json())
 
 const server = http.createServer(app)
 
-// 🚨 NUCLEAR OPTION: Set global environment to disable ALL seat reservations
-process.env.DISABLE_SEAT_RESERVATIONS = 'true'
-process.env.FORCE_NO_RESERVATIONS = 'true'
-console.log('🚨 GLOBAL OVERRIDE: All seat reservations DISABLED via environment!')
-console.log(`🚨 ENVIRONMENT CHECK: DISABLE_SEAT_RESERVATIONS=${process.env.DISABLE_SEAT_RESERVATIONS}`)
-console.log(`🚨 ENVIRONMENT CHECK: FORCE_NO_RESERVATIONS=${process.env.FORCE_NO_RESERVATIONS}`)
-
 const gameServer = new Server({
   transport: new WebSocketTransport({
     server,
@@ -49,13 +42,13 @@ const gameServer = new Server({
 gameServer.define(RoomType.LOBBY, LobbyRoom)
 gameServer.define(RoomType.PUBLIC, MetaDeskPublic, {
   name: 'Public Lobby (No Reservations)',
-  description: 'Fast join workspace - no seat reservations',
+  description: 'Public workspace',
   password: null,
   autoDispose: false,
 })
 gameServer.define(RoomType.INSTANT, InstantMetaDesk, {
-  name: 'Instant Lobby (Zero Wait)',
-  description: 'Instant join workspace - bypasses ALL reservations',
+  name: 'Instant Lobby',
+  description: 'Instant join workspace',
   password: null,
   autoDispose: false,
 })

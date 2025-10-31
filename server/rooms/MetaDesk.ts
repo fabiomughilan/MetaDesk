@@ -30,19 +30,9 @@ export class MetaDesk extends Room<OfficeState> {
     this.description = description;
     this.autoDispose = autoDispose;
     
-    // 🚨 NUCLEAR OPTION: Check global environment override
-    if (process.env.DISABLE_SEAT_RESERVATIONS === 'true') {
-      console.log(`🚨 GLOBAL OVERRIDE: MetaDesk ${this.roomId} - ZERO seat reservations enforced`);
-      this.setSeatReservationTime(0); // Force zero reservations
-    } else {
-      // EMERGENCY FIX: Disable seat reservations completely to solve connection issues
-      this.setSeatReservationTime(0); // NO RESERVATIONS - immediate join
-    }
+    this.setPrivate(false);
     
-    this.setPrivate(false); // Ensure room is discoverable
-    
-    console.log(`🏢 MetaDesk room created: ${this.roomId} - ${name} - NO RESERVATIONS MODE`);
-    console.log(`⚡ Seat reservation time: 0 seconds (DISABLED)`);
+    console.log(`🏢 MetaDesk room created: ${this.roomId} - ${name}`);
     console.log(`👥 Max clients: ${this.maxClients}`);
 
     let hasPassword = false;
@@ -150,20 +140,6 @@ export class MetaDesk extends Room<OfficeState> {
     })
   }
 
-  async onReserve(client: Client, options: any): Promise<any> {
-    console.log(`🎫 Seat reservation request from client ${client.sessionId}`);
-    console.log(`👥 Current players: ${this.clients.length}/${this.maxClients}`);
-    
-    // Always allow reservation if under max capacity - be very permissive
-    if (this.clients.length < this.maxClients) {
-      console.log(`✅ Seat reserved for client ${client.sessionId}`);
-      return { reserved: true, timestamp: Date.now() };
-    } else {
-      console.log(`❌ Room is full, denying reservation for client ${client.sessionId}`);
-      throw new Error(`Room is full (${this.maxClients} players maximum)`);
-    }
-  }
-
   async onAuth(client: Client, options: { password: string | null }): Promise<boolean> {
     console.log(`🔐 Authentication attempt for client ${client.sessionId}`);
     
@@ -198,7 +174,6 @@ export class MetaDesk extends Room<OfficeState> {
       const player = new Player();
       this.state.players.set(client.sessionId, player);
       console.log(`✅ Player added successfully. Total players: ${this.state.players.size}`)
-      console.log(`🔧 Room ${this.roomId} NO SEAT RESERVATIONS ENFORCED`)
     } catch (error) {
       console.error(`❌ Error in onJoin for client ${client.sessionId}:`, error)
       // Don't throw here, try to continue
@@ -218,12 +193,6 @@ export class MetaDesk extends Room<OfficeState> {
 
   onError(client: Client, error: any): void {
     console.error(`💥 Error for client ${client.sessionId} in room ${this.roomId}:`, error)
-    
-    // Try to gracefully handle seat reservation errors
-    if (error && error.message && error.message.includes('seat reservation')) {
-      console.log(`🔄 Attempting to recover from seat reservation error for ${client.sessionId}`)
-      // Allow a brief moment for the client to retry
-    }
   }
 
   onDispose(): void {
