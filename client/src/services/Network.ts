@@ -94,7 +94,6 @@ export default class Network {
       
       // Skip lobby entirely - go straight to public room to avoid seat reservations
       await this.joinOrCreatePublic()
-      store.dispatch(setLobbyJoined(true))
       console.log('✅ Successfully connected to public room (bypassed lobby)')
       
     } catch (error) {
@@ -209,6 +208,10 @@ export default class Network {
       
       this.room = await this.client.joinOrCreate(RoomType.PUBLIC);
       console.log('Successfully joined/created public room:', this.room.roomId);
+      
+      // Set lobby joined immediately after successful room connection
+      store.dispatch(setLobbyJoined(true))
+      console.log('✅ Lobby state updated - connection successful')
       
       // Start Firebase session tracking
       await this.startRoomSession();
