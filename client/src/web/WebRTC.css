@@ -1,0 +1,38 @@
+.video-grid {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    display: flex;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.video-grid video {
+    width: 200px;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid #666;
+}
+
+.button-grid {
+    position: fixed;
+    right: 20px;
+    bottom: 180px;
+    display: flex;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.button-grid button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    background: #444;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+.button-grid button:hover {
+    background: #555;
+}
