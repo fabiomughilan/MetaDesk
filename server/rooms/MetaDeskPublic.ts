@@ -22,7 +22,7 @@ export class MetaDeskPublic extends Room<OfficeState> {
   maxClients = 16
 
   async onCreate(options: any = {}): Promise<void> {
-    console.log(`🏢 MetaDeskPublic room created: ${this.roomId}`);
+    console.log(`🏢 MetaDeskPublic room created: ${this.roomId} - VERSION 2.0 NO RESERVATIONS`);
     
     // NO SEAT RESERVATIONS - immediate join
     this.setSeatReservationTime(0); // Disable seat reservations entirely
