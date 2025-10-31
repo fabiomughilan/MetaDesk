@@ -22,12 +22,13 @@ import {
 import { setWhiteboardUrls } from '../stores/WhiteboardStore'
 
 export default class Network {
-  private client: Client
-  private room?: Room<IOfficeState>
-  private lobby!: Room
-  webRTC?: WebRTC
+  private client: Client;
+  private room?: Room<IOfficeState>;
+  private lobby!: Room;
+  webRTC?: WebRTC;
+  private ready: boolean = false;
 
-  mySessionId!: string
+  mySessionId!: string;
   private maxRetries = 5
   private retryDelay = 2000
   private lastRoomType?: RoomType
@@ -188,14 +189,8 @@ export default class Network {
   }
 
   // set up all network listeners before the game starts
-  initialize() {
+  async initialize() {
     if (!this.room) return
-
-    try {
-      this.lobby.leave()
-    } catch (error) {
-      console.warn('Error leaving lobby:', error)
-    }
 
     this.mySessionId = this.room.sessionId
     store.dispatch(setSessionId(this.room.sessionId))
@@ -209,7 +204,19 @@ export default class Network {
       }
     })
 
-    this.webRTC = new WebRTC(this.mySessionId, this)
+    // Wait for room state to be fully initialized
+    await new Promise<void>((resolve) => {
+      this.room?.onStateChange.once(() => {
+        console.log("Room state initialized:", this.room?.state)
+        this.webRTC = new WebRTC(this.mySessionId, this)
+        this.setupStateListeners()
+        resolve()
+      })
+    })
+  }
+
+  private setupStateListeners = () => {
+    if (!this.room || !this.room.state) return
 
     // new instance added to the players MapSchema
     this.room.state.players.onAdd = (player: IPlayer, key: string) => {

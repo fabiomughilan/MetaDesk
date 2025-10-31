@@ -10,16 +10,19 @@ import { RoomType } from '../types/Rooms'
 
 import { MetaDesk } from './rooms/MetaDesk'
 
-const port = Number(process.env.PORT || 2567)
+const port = Number(process.env.PORT || 8080)
 const app = express()
 
-// Enable CORS for all origins in development, specific origin in production
-app.use(cors({
-  origin: true, // Allow all origins
-  methods: ["GET", "POST"],
-  allowedHeaders: ["my-custom-header"],
+// Enable CORS with proper configuration
+const corsConfig = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://workdesk24.netlify.app']
+    : true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
-}))
+};
+app.use(cors(corsConfig));
 app.use(express.json())
 // app.use(express.static('dist'))
 
