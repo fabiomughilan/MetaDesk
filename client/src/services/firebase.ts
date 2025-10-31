@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 
@@ -31,28 +31,20 @@ try {
   throw new Error('Firebase initialization failed. Please check your configuration.');
 }
 
-// Initialize Auth with enhanced error handling
+// Initialize Auth without persistence
 export const auth = getAuth(app);
 if (isFirebaseConfigured) {
-  auth.setPersistence(browserLocalPersistence)
-    .then(() => {
-      console.log('✅ Firebase Auth persistence enabled');
-    })
-    .catch((error) => {
-      console.error("❌ Firebase Auth persistence error:", error);
-      // Continue without persistence if it fails
-    });
+  console.log('✅ Firebase Auth initialized (no persistence)');
 } else {
-  console.warn('⚠️ Skipping Firebase Auth persistence due to incomplete configuration');
+  console.warn('⚠️ Firebase Auth initialized with incomplete configuration');
 }
 
-// Initialize Firestore with enhanced error handling
-// Note: Modern Firebase v12+ handles offline persistence automatically
+// Initialize Firestore without offline persistence
 export const db = getFirestore(app);
 
 if (isFirebaseConfigured) {
-  console.log('✅ Firestore initialized with automatic offline persistence');
-  console.log('ℹ️ Modern Firebase handles caching automatically - no manual persistence needed');
+  console.log('✅ Firestore initialized (online-only mode)');
+  console.log('ℹ️ Offline persistence disabled - requires internet connection');
 } else {
   console.warn('⚠️ Firestore initialized with incomplete configuration');
 }

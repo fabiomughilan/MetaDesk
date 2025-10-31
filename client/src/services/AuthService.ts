@@ -3,9 +3,7 @@ import {
   GoogleAuthProvider,
   signOut as firebaseSignOut,
   onAuthStateChanged,
-  User,
-  setPersistence,
-  browserLocalPersistence
+  User
 } from 'firebase/auth';
 import { auth } from './firebase';
 import { createUserProfile } from './FirestoreService';
@@ -50,10 +48,7 @@ export const signOut = async () => {
 export const initializeAuth = async () => {
   store.dispatch(setLoading(true));
   try {
-    // Set persistence to LOCAL (survive browser restart)
-    await setPersistence(auth, browserLocalPersistence);
-    
-    // Set up auth state listener
+    // Set up auth state listener (no persistence - session only)
     return onAuthStateChanged(auth, async (user: User | null) => {
       if (user) {
         // Update user profile when user signs in
