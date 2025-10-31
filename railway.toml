@@ -1,0 +1,21 @@
+# Railway configuration for MetaDesk server - EMERGENCY NUCLEAR DEPLOYMENT
+# This file tells Railway how to build and deploy the server
+
+# Build configuration
+[build]
+  builder = "nixpacks"
+  buildCommand = "npm run heroku-postbuild"
+
+# Deploy configuration  
+[deploy]
+  startCommand = "npm run start:prod"
+  restartPolicyType = "on_failure"
+  restartPolicyMaxRetries = 3
+
+# Environment variables - FORCE DISABLE SEAT RESERVATIONS
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  DISABLE_SEAT_RESERVATIONS = "true"
+  FORCE_NO_RESERVATIONS = "true"
+  RAILWAY_DEPLOYMENT_VERSION = "nuclear-v3"

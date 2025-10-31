@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
+import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 
 const firebaseConfig = {
@@ -15,8 +15,27 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const analytics = getAnalytics(app);
+
+// Initialize Auth with persistence
 export const auth = getAuth(app);
+auth.setPersistence(browserLocalPersistence)
+  .catch((error) => {
+    console.error("Firebase Auth persistence error:", error);
+  });
+
+// Initialize Firestore with offline persistence
 export const db = getFirestore(app);
+enableIndexedDbPersistence(db)
+  .catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.warn('Firestore offline persistence failed: Multiple tabs open');
+    } else if (err.code === 'unimplemented') {
+      console.warn('Firestore offline persistence failed: Browser not supported');
+    }
+  });
+
+// Initialize Analytics only in production
+const isProduction = import.meta.env.PROD;
+export const analytics = isProduction ? getAnalytics(app) : null;
 
 export default app;

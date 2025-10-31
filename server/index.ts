@@ -9,6 +9,8 @@ import { RoomType } from '../types/Rooms'
 // import socialRoutes from "@colyseus/social/express"
 
 import { MetaDesk } from './rooms/MetaDesk'
+import { MetaDeskPublic } from './rooms/MetaDeskPublic'
+import { InstantMetaDesk } from './rooms/InstantMetaDesk'
 
 const port = Number(process.env.PORT || 8080)
 const app = express()
@@ -27,15 +29,26 @@ app.use(express.json())
 // app.use(express.static('dist'))
 
 const server = http.createServer(app)
+
 const gameServer = new Server({
-  server
+  transport: new WebSocketTransport({
+    server,
+    pingInterval: 5000,
+    pingMaxRetries: 3,
+  })
 })
 
 // register room handlers
 gameServer.define(RoomType.LOBBY, LobbyRoom)
-gameServer.define(RoomType.PUBLIC, MetaDesk, {
-  name: 'Public Lobby',
-  description: 'For making friends and familiarizing yourself with the controls',
+gameServer.define(RoomType.PUBLIC, MetaDeskPublic, {
+  name: 'Public Lobby (No Reservations)',
+  description: 'Public workspace',
+  password: null,
+  autoDispose: false,
+})
+gameServer.define(RoomType.INSTANT, InstantMetaDesk, {
+  name: 'Instant Lobby',
+  description: 'Instant join workspace',
   password: null,
   autoDispose: false,
 })

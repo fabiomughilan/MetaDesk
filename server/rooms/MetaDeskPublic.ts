@@ -17,44 +17,32 @@ import {
 } from './commands/WhiteboardUpdateArrayCommand'
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 
-export class MetaDesk extends Room<OfficeState> {
+export class MetaDeskPublic extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
-  private name: string = ''
-  private description: string = ''
-  private password: string | null = null
   maxClients = 16
 
-  async onCreate(options: IRoomData): Promise<void> {
-    const { name, description, password, autoDispose } = options;
-    this.name = name;
-    this.description = description;
-    this.autoDispose = autoDispose;
+  async onCreate(options: any = {}): Promise<void> {
+    console.log(`🏢 MetaDeskPublic room created: ${this.roomId}`);
     
     this.setPrivate(false);
-    
-    console.log(`🏢 MetaDesk room created: ${this.roomId} - ${name}`);
-    console.log(`👥 Max clients: ${this.maxClients}`);
-
-    let hasPassword = false;
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      this.password = await bcrypt.hash(password, salt);
-      hasPassword = true;
-      console.log(`🔒 Room has password protection`);
-    }
-    this.setMetadata({ name, description, hasPassword });
+    this.autoDispose = false;
+    this.setMetadata({ name: "Public Lobby", description: "Open workspace", hasPassword: false });
     this.setState(new OfficeState());
 
-    // HARD-CODED: Add 5 computers in a room
+    // Add computers and whiteboards
     for (let i = 0; i < 5; i++) {
       this.state.computers.set(String(i), new Computer())
     }
 
-    // HARD-CODED: Add 3 whiteboards in a room
     for (let i = 0; i < 3; i++) {
       this.state.whiteboards.set(String(i), new Whiteboard())
     }
 
+    // Set up message handlers
+    this.setupMessageHandlers();
+  }
+
+  private setupMessageHandlers() {
     this.onMessage(Message.UPDATE_PLAYER, (client, message) => {
       this.dispatcher.dispatch(new PlayerUpdateCommand(), {
         client,
@@ -92,18 +80,6 @@ export class MetaDesk extends Room<OfficeState> {
       }
     })
 
-    this.onMessage(Message.STOP_SCREEN_SHARE, (client, message) => {
-      const computer = this.state.computers.get(message.computerId)
-      if (computer) {
-        computer.connectedUser.forEach((id) => {
-          const player = this.state.players.get(id)
-          if (player) {
-            player.videoConnected = false
-          }
-        })
-      }
-    })
-
     this.onMessage(Message.CONNECT_TO_COMPUTER, (client, message) => {
       this.dispatcher.dispatch(new ComputerAddUserCommand(), {
         client,
@@ -132,70 +108,52 @@ export class MetaDesk extends Room<OfficeState> {
       })
     })
 
-    this.onMessage(Message.ADD_CHAT_MESSAGE, (client, message) => {
+    this.onMessage(Message.ADD_CHAT_MESSAGE, (client, message: any) => {
       this.dispatcher.dispatch(new ChatMessageUpdateCommand(), {
         client,
-        content: message.content,
+        content: message.content || message,
       })
     })
   }
 
-  async onAuth(client: Client, options: { password: string | null }): Promise<boolean> {
-    console.log(`🔐 Authentication attempt for client ${client.sessionId}`);
-    
-    if (this.password) {
-      if (!options.password) {
-        console.log(`❌ Client ${client.sessionId} failed auth: no password provided`);
-        return false
-      }
-      const validPassword = await bcrypt.compare(options.password, this.password)
-      console.log(`${validPassword ? '✅' : '❌'} Client ${client.sessionId} auth result: ${validPassword}`)
-      return validPassword
-    }
-    console.log(`✅ Client ${client.sessionId} auth successful: no password required`)
+  // NO AUTH REQUIRED - public room
+  async onAuth(client: Client, options: any): Promise<boolean> {
+    console.log(`✅ Public access granted to client ${client.sessionId}`)
     return true
   }
 
   onJoin(client: Client, options: any): void {
-    console.log(`🚪 Client ${client.sessionId} joined room ${this.roomId}`)
-    console.log(`👤 Adding player for client ${client.sessionId}`)
-    
-    // 🚨 EMERGENCY: Force zero reservations again in case of system override
-    this.setSeatReservationTime(0);
-    console.log(`🚨 EMERGENCY: Seat reservations re-disabled in onJoin for ${client.sessionId}`);
+    console.log(`🚪 Client ${client.sessionId} joined public room ${this.roomId}`)
     
     try {
       client.send(Message.SEND_ROOM_DATA, {
         roomId: this.roomId,
-        name: this.name,
-        description: this.description,
+        name: "Public Lobby",
+        description: "Open workspace for everyone",
       })
       
       const player = new Player();
       this.state.players.set(client.sessionId, player);
-      console.log(`✅ Player added successfully. Total players: ${this.state.players.size}`)
+      console.log(`✅ Player added successfully. Total players: ${this.state.players.size}/${this.maxClients}`)
     } catch (error) {
       console.error(`❌ Error in onJoin for client ${client.sessionId}:`, error)
-      // Don't throw here, try to continue
     }
   }
 
   onLeave(client: Client, consented: boolean): void {
-    console.log(`🚪 Client ${client.sessionId} left room ${this.roomId}, consented: ${consented}`)
+    console.log(`🚪 Client ${client.sessionId} left public room, consented: ${consented}`)
     
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)
-      console.log(`✅ Player removed for client ${client.sessionId}. Total players: ${this.state.players.size}`)
-    } else {
-      console.log(`⚠️ Client ${client.sessionId} was not found in players list`)
+      console.log(`✅ Player removed. Total players: ${this.state.players.size}/${this.maxClients}`)
     }
   }
 
   onError(client: Client, error: any): void {
-    console.error(`💥 Error for client ${client.sessionId} in room ${this.roomId}:`, error)
+    console.error(`💥 Public room error for client ${client.sessionId}:`, error)
   }
 
   onDispose(): void {
-    console.log('room', this.roomId, 'disposing...')
+    console.log(`🏢 Public room ${this.roomId} disposing...`)
   }
 }

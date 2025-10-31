@@ -1,10 +1,7 @@
-import bcrypt from 'bcrypt'
 import { Room, Client } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { Player, OfficeState, Computer, Whiteboard } from './schema/OfficeState'
 import { Message } from '../../types/Messages'
-import { IRoomData } from '../../types/Rooms'
-import { whiteboardRoomIds } from './schema/OfficeState'
 import PlayerUpdateCommand from './commands/PlayerUpdateCommand'
 import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand'
 import {
@@ -17,44 +14,39 @@ import {
 } from './commands/WhiteboardUpdateArrayCommand'
 import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 
-export class MetaDesk extends Room<OfficeState> {
+export class InstantMetaDesk extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
-  private name: string = ''
-  private description: string = ''
-  private password: string | null = null
   maxClients = 16
 
-  async onCreate(options: IRoomData): Promise<void> {
-    const { name, description, password, autoDispose } = options;
-    this.name = name;
-    this.description = description;
-    this.autoDispose = autoDispose;
+  async onCreate(options: any = {}): Promise<void> {
+    console.log(`🚀 InstantMetaDesk room created: ${this.roomId}`);
     
     this.setPrivate(false);
-    
-    console.log(`🏢 MetaDesk room created: ${this.roomId} - ${name}`);
-    console.log(`👥 Max clients: ${this.maxClients}`);
+    this.autoDispose = false;
+    this.setMetadata({ 
+      name: "Instant Lobby", 
+      description: "Instant join workspace - zero wait time", 
+      hasPassword: false,
+      instant: true,
+      reservations: "disabled"
+    });
 
-    let hasPassword = false;
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      this.password = await bcrypt.hash(password, salt);
-      hasPassword = true;
-      console.log(`🔒 Room has password protection`);
-    }
-    this.setMetadata({ name, description, hasPassword });
     this.setState(new OfficeState());
 
-    // HARD-CODED: Add 5 computers in a room
+    // Add computers and whiteboards
     for (let i = 0; i < 5; i++) {
       this.state.computers.set(String(i), new Computer())
     }
 
-    // HARD-CODED: Add 3 whiteboards in a room
     for (let i = 0; i < 3; i++) {
       this.state.whiteboards.set(String(i), new Whiteboard())
     }
 
+    this.setupMessageHandlers();
+    console.log(`✅ InstantMetaDesk ${this.roomId} ready for INSTANT connections`);
+  }
+
+  private setupMessageHandlers() {
     this.onMessage(Message.UPDATE_PLAYER, (client, message) => {
       this.dispatcher.dispatch(new PlayerUpdateCommand(), {
         client,
@@ -92,18 +84,6 @@ export class MetaDesk extends Room<OfficeState> {
       }
     })
 
-    this.onMessage(Message.STOP_SCREEN_SHARE, (client, message) => {
-      const computer = this.state.computers.get(message.computerId)
-      if (computer) {
-        computer.connectedUser.forEach((id) => {
-          const player = this.state.players.get(id)
-          if (player) {
-            player.videoConnected = false
-          }
-        })
-      }
-    })
-
     this.onMessage(Message.CONNECT_TO_COMPUTER, (client, message) => {
       this.dispatcher.dispatch(new ComputerAddUserCommand(), {
         client,
@@ -132,70 +112,54 @@ export class MetaDesk extends Room<OfficeState> {
       })
     })
 
-    this.onMessage(Message.ADD_CHAT_MESSAGE, (client, message) => {
+    this.onMessage(Message.ADD_CHAT_MESSAGE, (client, message: any) => {
       this.dispatcher.dispatch(new ChatMessageUpdateCommand(), {
         client,
-        content: message.content,
+        content: message.content || message,
       })
     })
   }
 
-  async onAuth(client: Client, options: { password: string | null }): Promise<boolean> {
-    console.log(`🔐 Authentication attempt for client ${client.sessionId}`);
-    
-    if (this.password) {
-      if (!options.password) {
-        console.log(`❌ Client ${client.sessionId} failed auth: no password provided`);
-        return false
-      }
-      const validPassword = await bcrypt.compare(options.password, this.password)
-      console.log(`${validPassword ? '✅' : '❌'} Client ${client.sessionId} auth result: ${validPassword}`)
-      return validPassword
-    }
-    console.log(`✅ Client ${client.sessionId} auth successful: no password required`)
+  // INSTANT AUTH - always allow
+  async onAuth(client: Client, options: any): Promise<boolean> {
+    console.log(`⚡ INSTANT access granted to client ${client.sessionId}`)
     return true
   }
 
+  // INSTANT JOIN - no reservations, no delays
   onJoin(client: Client, options: any): void {
-    console.log(`🚪 Client ${client.sessionId} joined room ${this.roomId}`)
-    console.log(`👤 Adding player for client ${client.sessionId}`)
-    
-    // 🚨 EMERGENCY: Force zero reservations again in case of system override
-    this.setSeatReservationTime(0);
-    console.log(`🚨 EMERGENCY: Seat reservations re-disabled in onJoin for ${client.sessionId}`);
+    console.log(`⚡ INSTANT JOIN: Client ${client.sessionId} joined InstantMetaDesk ${this.roomId}`)
     
     try {
+      // Send room data immediately
       client.send(Message.SEND_ROOM_DATA, {
         roomId: this.roomId,
-        name: this.name,
-        description: this.description,
+        name: "Instant Lobby",
+        description: "Zero-delay workspace",
       })
       
+      // Create player immediately
       const player = new Player();
       this.state.players.set(client.sessionId, player);
-      console.log(`✅ Player added successfully. Total players: ${this.state.players.size}`)
+      console.log(`⚡ INSTANT player added. Total: ${this.state.players.size}/${this.maxClients}`)
+      
+      // Send welcome message
+      console.log(`🎉 Client ${client.sessionId} successfully joined InstantMetaDesk!`)
     } catch (error) {
-      console.error(`❌ Error in onJoin for client ${client.sessionId}:`, error)
-      // Don't throw here, try to continue
+      console.error(`❌ Error in InstantMetaDesk onJoin for client ${client.sessionId}:`, error)
     }
   }
 
   onLeave(client: Client, consented: boolean): void {
-    console.log(`🚪 Client ${client.sessionId} left room ${this.roomId}, consented: ${consented}`)
+    console.log(`⚡ Client ${client.sessionId} left InstantMetaDesk, consented: ${consented}`)
     
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)
-      console.log(`✅ Player removed for client ${client.sessionId}. Total players: ${this.state.players.size}`)
-    } else {
-      console.log(`⚠️ Client ${client.sessionId} was not found in players list`)
+      console.log(`⚡ Player removed. Total: ${this.state.players.size}/${this.maxClients}`)
     }
   }
 
-  onError(client: Client, error: any): void {
-    console.error(`💥 Error for client ${client.sessionId} in room ${this.roomId}:`, error)
-  }
-
   onDispose(): void {
-    console.log('room', this.roomId, 'disposing...')
+    console.log(`⚡ InstantMetaDesk room ${this.roomId} disposing`)
   }
 }

@@ -1,10 +1,17 @@
 import { Client, Room } from 'colyseus.js'
-import { IComputer, IOfficeState, IPlayer, IWhiteboard } from '../../../types/IOfficeState'
+import { IComputer, IOfficeState, IPlayer, IWhiteboard, IChatMessage } from '../../../types/IOfficeState'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
 import WebRTC from '../web/WebRTC'
 import { phaserEvents, Event } from '../events/EventCenter'
+import { 
+  saveChatMessage, 
+  getChatHistory, 
+  startRoomSession, 
+  endRoomSession 
+} from './FirestoreService'
+import { getCurrentUser } from './AuthService'
 import store from '../stores'
 import { setSessionId, setPlayerNameMap, removePlayerNameMap } from '../stores/UserStore'
 import {
@@ -21,18 +28,39 @@ import {
 } from '../stores/ChatStore'
 import { setWhiteboardUrls } from '../stores/WhiteboardStore'
 
+enum ConnectionStatus {
+  DISCONNECTED = 'disconnected',
+  CONNECTING = 'connecting',
+  CONNECTED = 'connected',
+  ERROR = 'error'
+}
+
 export default class Network {
-  private client: Client;
+  private client!: Client;
   private room?: Room<IOfficeState>;
   private lobby!: Room;
   webRTC?: WebRTC;
+  private connectionStatus: ConnectionStatus = ConnectionStatus.DISCONNECTED;
   private ready: boolean = false;
+  private reconnectTimer?: NodeJS.Timeout;
   private connecting: boolean = false;
   private disconnecting: boolean = false;
+  private currentSessionId?: string; // Track current room session
+
+  private scheduleReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+    }
+    
+    this.reconnectTimer = setTimeout(() => {
+      console.log('Attempting to reconnect...');
+      this.connectWithRetry();
+    }, 5000); // Try to reconnect after 5 seconds
+  }
 
   mySessionId!: string;
-  private maxRetries = 5
-  private retryDelay = 2000
+  private maxRetries = 10 // Increased from 5
+  private retryDelay = 1000 // Reduced from 2000
   private lastRoomType?: RoomType
   private lastRoomData?: any
 
@@ -61,22 +89,28 @@ export default class Network {
 
   private async connectWithRetry(attempt: number = 1) {
     try {
-      await this.joinLobbyRoom()
+      console.log(`Connection attempt ${attempt}/${this.maxRetries}...`)
+      console.log('🎯 Skipping lobby - connecting directly to public room...')
+      
+      // Skip lobby entirely - go straight to public room to avoid seat reservations
+      await this.joinOrCreatePublic()
       store.dispatch(setLobbyJoined(true))
-      console.log('Successfully connected to lobby')
-      // If we succeed, try to reconnect to the previous room
-      if (this.lastRoomType) {
-        await this.attemptReconnection()
-      }
+      console.log('✅ Successfully connected to public room (bypassed lobby)')
+      
     } catch (error) {
       console.warn(`Connection attempt ${attempt}/${this.maxRetries} failed:`, error)
       if (attempt < this.maxRetries) {
-        const delay = Math.min(this.retryDelay * Math.pow(2, attempt - 1), 10000)
+        // More aggressive retry for connection issues
+        const delay = attempt === 1 ? 1000 : Math.min(this.retryDelay * Math.pow(1.5, attempt - 1), 8000)
         console.log(`Retrying in ${delay}ms...`)
         await new Promise(resolve => setTimeout(resolve, delay))
         await this.connectWithRetry(attempt + 1)
       } else {
         console.error('Failed to connect after', this.maxRetries, 'attempts')
+        // Continue trying in background
+        console.log('Continuing to retry in background...')
+        setTimeout(() => this.connectWithRetry(1), 10000) // Try again in 10 seconds
+        
         // Reset room state on final failure
         this.lastRoomType = undefined
         this.lastRoomData = undefined
@@ -86,16 +120,25 @@ export default class Network {
 
   constructor() {
     const endpoint = import.meta.env.VITE_SERVER_URL
-    console.log('Connecting to server:', endpoint)
+    console.log('🚀 MetaDesk Network Service Initializing...')
+    console.log('📡 Server endpoint:', endpoint)
+    console.log('⏱️  Connection timeout:', import.meta.env.VITE_CONNECTION_TIMEOUT, 'ms')
     
+    if (!endpoint) {
+      console.error('❌ Server URL is not configured. Check VITE_SERVER_URL in .env file')
+      return
+    }
+    
+    // Initialize Colyseus client with reconnection options
     this.client = new Client(endpoint)
 
     // Initialize WebRTC early with a temporary ID
     const tempId = 'temp-' + Math.random().toString(36).substr(2, 9)
-    console.log('Initializing WebRTC with temporary ID:', tempId)
+    console.log('🎥 Initializing WebRTC with temporary ID:', tempId)
     this.webRTC = new WebRTC(tempId, this)
 
     // Attempt connection with retries
+    console.log('🔄 Starting connection attempts...')
     this.connectWithRetry()
 
     phaserEvents.on(Event.MY_PLAYER_NAME_CHANGE, this.updatePlayerName, this)
@@ -108,44 +151,126 @@ export default class Network {
    * connected clients whenever rooms with "realtime listing" have updates
    */
   async joinLobbyRoom() {
-    this.lobby = await this.client.joinOrCreate(RoomType.LOBBY)
+    try {
+      console.log('Attempting to join lobby room...');
+      this.connectionStatus = ConnectionStatus.CONNECTING;
+      
+      // Create lobby connection with proper timeout handling
+      this.lobby = await this.client.joinOrCreate(RoomType.LOBBY);
+      console.log('Successfully joined lobby');
+      
+      // Set up lobby room event handlers
+      this.lobby.onStateChange(() => {
+        console.log('Lobby state updated');
+        this.connectionStatus = ConnectionStatus.CONNECTED;
+      });
 
-    this.lobby.onMessage('rooms', (rooms) => {
-      store.dispatch(setAvailableRooms(rooms))
-    })
+      this.lobby.onError((error) => {
+        console.error('Lobby room error:', error);
+        this.connectionStatus = ConnectionStatus.ERROR;
+        // Don't schedule reconnect here, let the main retry logic handle it
+      });
 
-    this.lobby.onMessage('+', ([roomId, room]) => {
-      store.dispatch(addAvailableRooms({ roomId, room }))
-    })
+      this.lobby.onLeave((code) => {
+        console.log('Left lobby room, code:', code);
+        this.connectionStatus = ConnectionStatus.DISCONNECTED;
+        // Don't schedule reconnect here, let the main retry logic handle it
+      });
 
-    this.lobby.onMessage('-', (roomId) => {
-      store.dispatch(removeAvailableRooms(roomId))
-    })
+      // Set up room listing handlers
+      this.lobby.onMessage('rooms', (rooms) => {
+        console.log('Received rooms list:', rooms);
+        store.dispatch(setAvailableRooms(rooms));
+      });
+
+      this.lobby.onMessage('+', ([roomId, room]) => {
+        console.log('Room added:', roomId);
+        store.dispatch(addAvailableRooms({ roomId, room }));
+      });
+
+      this.lobby.onMessage('-', (roomId) => {
+        console.log('Room removed:', roomId);
+        store.dispatch(removeAvailableRooms(roomId));
+      });
+    } catch (error) {
+      console.error('Failed to join lobby:', error);
+      this.connectionStatus = ConnectionStatus.ERROR;
+      this.scheduleReconnect();
+      throw error;
+    }
   }
 
   // method to join the public lobby
   async joinOrCreatePublic() {
     try {
-      this.lastRoomType = RoomType.PUBLIC
-      this.lastRoomData = null
-      this.room = await this.client.joinOrCreate(RoomType.PUBLIC)
-      this.initialize()
+      console.log('Attempting to join public room...');
+      this.lastRoomType = RoomType.PUBLIC;
+      this.lastRoomData = null;
+      
+      this.room = await this.client.joinOrCreate(RoomType.PUBLIC);
+      console.log('Successfully joined/created public room:', this.room.id);
+      
+      // Start Firebase session tracking
+      await this.startRoomSession();
+      
+      // Load chat history
+      await this.loadChatHistory();
+      
+      // Set up room event handlers
+      this.room.onStateChange((state) => {
+        console.log('Room state updated:', {
+          numPlayers: state.players.size,
+          playerIds: Array.from(state.players.keys())
+        });
+      });
+
+      this.room.onError((error) => {
+        console.error('Room error:', error);
+        
+        // Handle seat reservation errors specifically
+        if (typeof error === 'object' && error && 'message' in error) {
+          const errorObj = error as { message: string };
+          if (typeof errorObj.message === 'string' && errorObj.message.includes('seat reservation')) {
+            console.log('Seat reservation expired, retrying immediately...');
+            setTimeout(() => this.joinOrCreatePublic(), 500);
+            return;
+          }
+        }
+        this.scheduleReconnect();
+      });
+
+      this.room.onLeave((code) => {
+        console.log('Left room, code:', code);
+        if (code > 1000) { // Abnormal closure
+          this.scheduleReconnect();
+        }
+      });
+
+      await this.initialize();
+      console.log('Room initialized successfully');
     } catch (error) {
-      console.error('Failed to join public room:', error)
-      await this.retryRoomConnection(() => this.client.joinOrCreate(RoomType.PUBLIC))
+      console.error('Failed to join public room:', error);
+      
+      // Handle seat reservation errors specifically
+      if (error instanceof Error && error.message.includes('seat reservation')) {
+        console.log('Seat reservation expired, retrying in 500ms...');
+        setTimeout(() => this.joinOrCreatePublic(), 500);
+      } else {
+        await this.retryRoomConnection(() => this.client.joinOrCreate(RoomType.PUBLIC));
+      }
     }
   }
 
   // method to join a custom room
   async joinCustomById(roomId: string, password: string | null) {
     try {
-      this.lastRoomType = RoomType.CUSTOM
-      this.lastRoomData = { roomId, password }
-      this.room = await this.client.joinById(roomId, { password })
-      this.initialize()
+      this.lastRoomType = RoomType.CUSTOM;
+      this.lastRoomData = { roomId, password };
+      this.room = await this.client.joinById(roomId, { password });
+      await this.initialize();
     } catch (error) {
-      console.error('Failed to join room:', error)
-      await this.retryRoomConnection(() => this.client.joinById(roomId, { password }))
+      console.error('Failed to join custom room:', error);
+      await this.retryRoomConnection(() => this.client.joinById(roomId, { password }));
     }
   }
 
@@ -161,7 +286,7 @@ export default class Network {
         password,
         autoDispose,
       })
-      this.initialize()
+      await this.initialize()
     } catch (error) {
       console.error('Failed to create room:', error)
       await this.retryRoomConnection(() => 
@@ -182,13 +307,23 @@ export default class Network {
     }
 
     try {
-      const delay = Math.min(this.retryDelay * Math.pow(2, attempt - 1), 10000)
+      // Shorter delay for seat reservation issues
+      const delay = Math.min(1000 * attempt, 5000) // 1s, 2s, 3s, 4s, 5s max
+      console.log(`Retrying room connection in ${delay}ms (attempt ${attempt}/${this.maxRetries})`)
       await new Promise(resolve => setTimeout(resolve, delay))
+      
       this.room = await connectFn()
-      this.initialize()
+      await this.initialize()
     } catch (error) {
       console.warn(`Room connection attempt ${attempt}/${this.maxRetries} failed:`, error)
-      await this.retryRoomConnection(connectFn, attempt + 1)
+      
+      // If it's a seat reservation error, retry immediately
+      if (error instanceof Error && error.message.includes('seat reservation')) {
+        console.log('Seat reservation expired, retrying immediately...')
+        await this.retryRoomConnection(connectFn, attempt + 1)
+      } else {
+        await this.retryRoomConnection(connectFn, attempt + 1)
+      }
     }
   }
 
@@ -215,59 +350,79 @@ export default class Network {
       })
 
       // Wait for room state to be fully initialized
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Room state initialization timeout'))
+        }, 10000) // 10 second timeout
+
         this.room?.onStateChange.once(() => {
-          console.log("Room state initialized:", this.room?.state)
-          this.webRTC = new WebRTC(this.mySessionId, this)
+          clearTimeout(timeout)
+          console.log("🏠 Room state initialized!")
+          console.log("📊 Room details:", {
+            roomId: this.room?.id,
+            sessionId: this.room?.sessionId,
+            playerCount: this.room?.state?.players?.size || 0,
+            players: this.room?.state?.players ? Array.from(this.room.state.players.keys()) : []
+          })
+          
+          // Only create WebRTC if it doesn't exist
+          if (!this.webRTC) {
+            this.webRTC = new WebRTC(this.mySessionId, this)
+          }
+          
           this.setupStateListeners()
           this.ready = true
           this.connecting = false
           resolve()
         })
       })
+
+      console.log('Room initialization completed successfully')
     } catch (error) {
       console.error('Failed to initialize room:', error)
       this.connecting = false
       this.ready = false
       throw error
     }
-
-    // Wait for room state to be fully initialized
-    await new Promise<void>((resolve) => {
-      this.room?.onStateChange.once(() => {
-        console.log("Room state initialized:", this.room?.state)
-        this.webRTC = new WebRTC(this.mySessionId, this)
-        this.setupStateListeners()
-        resolve()
-      })
-    })
   }
 
   private setupStateListeners = () => {
-    if (!this.room || !this.room.state) return
+    if (!this.room || !this.room.state) {
+      console.error('❌ Cannot setup state listeners - room or state is null')
+      return
+    }
+
+    console.log('🔧 Setting up state listeners...')
+    console.log('🔍 Current players in room:', {
+      totalPlayers: this.room.state.players.size,
+      playerKeys: Array.from(this.room.state.players.keys()),
+      mySessionId: this.mySessionId
+    })
+
+    // Check if there are already players in the room
+    this.room.state.players.forEach((player: IPlayer, key: string) => {
+      if (key !== this.mySessionId) {
+        console.log('🔄 Existing player found in room:', { key, playerName: player.name })
+        // Manually trigger the add event for existing players
+        this.handlePlayerAdd(player, key)
+      }
+    })
 
     // new instance added to the players MapSchema
     this.room.state.players.onAdd = (player: IPlayer, key: string) => {
-      if (key === this.mySessionId) return
-
-      // track changes on every child object inside the players MapSchema
-      player.onChange = (changes) => {
-        changes.forEach((change) => {
-          const { field, value } = change
-          phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
-
-          // when a new player finished setting up player name
-          if (field === 'name' && value !== '') {
-            phaserEvents.emit(Event.PLAYER_JOINED, player, key)
-            store.dispatch(setPlayerNameMap({ id: key, name: value }))
-            store.dispatch(pushPlayerJoinedMessage(value))
-          }
-        })
+      console.log('🧑‍🤝‍🧑 Player added to room:', { key, player, isMe: key === this.mySessionId })
+      
+      if (key === this.mySessionId) {
+        console.log('👤 This is my own player, ignoring')
+        return
       }
+
+      this.handlePlayerAdd(player, key)
     }
 
     // an instance removed from the players MapSchema
     this.room.state.players.onRemove = (player: IPlayer, key: string) => {
+      console.log('👋 Player left room:', { key, playerName: player.name })
       phaserEvents.emit(Event.PLAYER_LEFT, key)
       this.webRTC?.deleteVideoStream(key)
       this.webRTC?.deleteOnCalledVideoStream(key)
@@ -328,6 +483,28 @@ export default class Network {
       const computerState = store.getState().computer
       computerState.shareScreenManager?.onUserLeft(clientId)
     })
+  }
+
+  private handlePlayerAdd = (player: IPlayer, key: string) => {
+    console.log('👥 Setting up remote player:', key)
+    
+    // track changes on every child object inside the players MapSchema
+    player.onChange = (changes) => {
+      console.log('🔄 Player state changed:', { key, changes })
+      changes.forEach((change) => {
+        const { field, value } = change
+        console.log('📝 Player field updated:', { key, field, value })
+        phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
+
+        // when a new player finished setting up player name
+        if (field === 'name' && value !== '') {
+          console.log('✅ Player joined with name:', { key, name: value })
+          phaserEvents.emit(Event.PLAYER_JOINED, player, key)
+          store.dispatch(setPlayerNameMap({ id: key, name: value }))
+          store.dispatch(pushPlayerJoinedMessage(value))
+        }
+      })
+    }
   }
 
   // method to register event listener and call back function when a item user added
@@ -444,5 +621,92 @@ export default class Network {
 
   addChatMessage(content: string) {
     this.room?.send(Message.ADD_CHAT_MESSAGE, { content: content })
+    
+    // Save to Firestore - create IChatMessage object
+    const currentUser = getCurrentUser();
+    if (currentUser) {
+      const chatMessage: IChatMessage = {
+        author: currentUser.displayName || 'Anonymous',
+        content: content,
+        createdAt: Date.now()
+      };
+      this.saveChatToFirestore(chatMessage);
+    }
+  }
+
+  // Firebase session tracking methods
+  private async startRoomSession(): Promise<void> {
+    try {
+      if (!this.room) return;
+
+      const currentUser = getCurrentUser();
+      if (!currentUser) return;
+
+      await startRoomSession(
+        currentUser.uid,
+        currentUser.displayName || 'Anonymous',
+        this.room.id,
+        'MetaDesk Office'
+      );
+
+      console.log('🏁 Room session started in Firestore');
+    } catch (error) {
+      console.error('❌ Error starting room session:', error);
+    }
+  }
+
+  private async loadChatHistory(): Promise<void> {
+    try {
+      if (!this.room) return;
+
+      const chatHistory = await getChatHistory(this.room.id, 50);
+      
+      // Load historical messages into the chat store
+      chatHistory.forEach(message => {
+        store.dispatch(pushChatMessage({
+          author: message.authorName,
+          content: message.content,
+          createdAt: message.timestamp?.toDate?.().getTime() || Date.now()
+        }));
+      });
+
+      console.log(`💬 Loaded ${chatHistory.length} historical messages`);
+    } catch (error) {
+      console.error('❌ Error loading chat history:', error);
+    }
+  }
+
+  private async saveChatToFirestore(message: IChatMessage): Promise<void> {
+    try {
+      if (!this.room) return;
+
+      const currentUser = getCurrentUser();
+      if (!currentUser) return;
+
+      await saveChatMessage({
+        roomId: this.room.id,
+        authorId: currentUser.uid,
+        authorName: message.author,
+        content: message.content,
+        type: 'message'
+      });
+
+      console.log('💾 Chat message saved to Firestore');
+    } catch (error) {
+      console.error('❌ Error saving chat to Firestore:', error);
+    }
+  }
+
+  // End session when leaving room
+  private async endCurrentSession(): Promise<void> {
+    try {
+      if (this.currentSessionId) {
+        await endRoomSession(this.currentSessionId);
+        console.log('📊 Room session ended:', this.currentSessionId);
+        this.currentSessionId = undefined;
+      }
+    } catch (error) {
+      console.error('❌ Error ending room session:', error);
+    }
   }
 }
