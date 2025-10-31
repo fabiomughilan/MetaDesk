@@ -31,7 +31,10 @@ const server = http.createServer(app)
 
 // 🚨 NUCLEAR OPTION: Set global environment to disable ALL seat reservations
 process.env.DISABLE_SEAT_RESERVATIONS = 'true'
-console.log('� GLOBAL OVERRIDE: All seat reservations DISABLED via environment!')
+process.env.FORCE_NO_RESERVATIONS = 'true'
+console.log('🚨 GLOBAL OVERRIDE: All seat reservations DISABLED via environment!')
+console.log(`🚨 ENVIRONMENT CHECK: DISABLE_SEAT_RESERVATIONS=${process.env.DISABLE_SEAT_RESERVATIONS}`)
+console.log(`🚨 ENVIRONMENT CHECK: FORCE_NO_RESERVATIONS=${process.env.FORCE_NO_RESERVATIONS}`)
 
 const gameServer = new Server({
   transport: new WebSocketTransport({
