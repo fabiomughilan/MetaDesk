@@ -202,6 +202,16 @@ export default class Network {
 
       this.room.onError((error) => {
         console.error('Room error:', error);
+        
+        // Handle seat reservation errors specifically
+        if (typeof error === 'object' && error && 'message' in error) {
+          const errorObj = error as { message: string };
+          if (typeof errorObj.message === 'string' && errorObj.message.includes('seat reservation')) {
+            console.log('Seat reservation expired, retrying immediately...');
+            setTimeout(() => this.joinOrCreatePublic(), 500);
+            return;
+          }
+        }
         this.scheduleReconnect();
       });
 
@@ -216,7 +226,14 @@ export default class Network {
       console.log('Room initialized successfully');
     } catch (error) {
       console.error('Failed to join public room:', error);
-      await this.retryRoomConnection(() => this.client.joinOrCreate(RoomType.PUBLIC));
+      
+      // Handle seat reservation errors specifically
+      if (error instanceof Error && error.message.includes('seat reservation')) {
+        console.log('Seat reservation expired, retrying in 500ms...');
+        setTimeout(() => this.joinOrCreatePublic(), 500);
+      } else {
+        await this.retryRoomConnection(() => this.client.joinOrCreate(RoomType.PUBLIC));
+      }
     }
   }
 
