@@ -30,12 +30,12 @@ export class MetaDesk extends Room<OfficeState> {
     this.description = description;
     this.autoDispose = autoDispose;
     
-    // Set maximum seat reservation time and disable auto-disposal for stability
-    this.setSeatReservationTime(300); // 5 minutes to handle even the slowest connections
+    // TEMPORARY FIX: Disable seat reservations completely to solve connection issues
+    this.setSeatReservationTime(0); // NO RESERVATIONS - immediate join
     this.setPrivate(false); // Ensure room is discoverable
     
-    console.log(`🏢 MetaDesk room created: ${this.roomId} - ${name}`);
-    console.log(`⏰ Seat reservation time: 300 seconds`);
+    console.log(`🏢 MetaDesk room created: ${this.roomId} - ${name} - NO RESERVATIONS MODE`);
+    console.log(`⚡ Seat reservation time: 0 seconds (DISABLED)`);
     console.log(`👥 Max clients: ${this.maxClients}`);
 
     let hasPassword = false;
