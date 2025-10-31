@@ -17,6 +17,7 @@ import Ash from '../images/login/Ash_login.png'
 import Lucy from '../images/login/Lucy_login.png'
 import Nancy from '../images/login/Nancy_login.png'
 import { useAppSelector, useAppDispatch } from '../hooks'
+import { signInWithGoogle, signOut } from '../services/AuthService'
 import { setLoggedIn } from '../stores/UserStore'
 import { getAvatarString, getColorByString } from '../util'
 
@@ -165,6 +166,19 @@ export default function LoginDialog() {
     }
   }
 
+  const authUser = useAppSelector((state) => state.auth.user)
+
+  const handleGoogleSignIn = async () => {
+    try {
+      const user = await signInWithGoogle()
+      if (user) {
+        setName(user.displayName || '')
+      }
+    } catch (err) {
+      console.error('Google sign-in failed', err)
+    }
+  }
+
   return (
     <Wrapper onSubmit={handleSubmit}>
       <Title>Joining</Title>
@@ -197,6 +211,27 @@ export default function LoginDialog() {
           </Swiper>
         </Left>
         <Right>
+          {/* Google sign-in */}
+          {authUser ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Avatar src={authUser.photoURL || undefined} />
+              <div style={{ color: '#c2c2c2' }}>{authUser.displayName}</div>
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={() => {
+                  signOut()
+                }}
+              >
+                Sign out
+              </Button>
+            </div>
+          ) : (
+            <Button variant="contained" color="primary" onClick={handleGoogleSignIn} style={{ marginBottom: 12 }}>
+              Sign in with Google
+            </Button>
+          )}
+
           <TextField
             autoFocus
             fullWidth

@@ -1,13 +1,31 @@
-import { Schema, ArraySchema, SetSchema, MapSchema, type } from '@colyseus/schema'
-import {
-  IPlayer,
-  IOfficeState,
-  IComputer,
-  IWhiteboard,
-  IChatMessage,
-} from '../../../types/IOfficeState'
+import { Schema, ArraySchema, SetSchema, MapSchema } from '@colyseus/schema'
+import { type } from '@colyseus/schema'
+import type { IOfficeState, IPlayer, IComputer, IWhiteboard, IChatMessage } from '../../../types/IOfficeState'
 
-export class Player extends Schema implements IPlayer {
+// Whiteboard room ID management
+const whiteboardRoomIds = new Set<string>()
+
+function generateRoomId(length: number): string {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let result = ''
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length))
+  }
+  return result
+}
+
+function createUniqueRoomId(): string {
+  const result = generateRoomId(12)
+  if (!whiteboardRoomIds.has(result)) {
+    whiteboardRoomIds.add(result)
+    return result
+  }
+  console.log('roomId exists, remaking another one.')
+  return createUniqueRoomId()
+}
+
+// Schema definitions
+class Player extends Schema {
   @type('string') name = ''
   @type('number') x = 705
   @type('number') y = 500
@@ -16,49 +34,26 @@ export class Player extends Schema implements IPlayer {
   @type('boolean') videoConnected = false
 }
 
-export class Computer extends Schema implements IComputer {
+class Computer extends Schema {
   @type({ set: 'string' }) connectedUser = new SetSchema<string>()
 }
 
-export class Whiteboard extends Schema implements IWhiteboard {
-  @type('string') roomId = getRoomId()
+class Whiteboard extends Schema {
+  @type('string') roomId = createUniqueRoomId()
   @type({ set: 'string' }) connectedUser = new SetSchema<string>()
 }
 
-export class ChatMessage extends Schema implements IChatMessage {
+class ChatMessage extends Schema {
   @type('string') author = ''
   @type('number') createdAt = new Date().getTime()
   @type('string') content = ''
 }
 
-export class OfficeState extends Schema implements IOfficeState {
-  @type({ map: Player })
-  players = new MapSchema<Player>()
-
-  @type({ map: Computer })
-  computers = new MapSchema<Computer>()
-
-  @type({ map: Whiteboard })
-  whiteboards = new MapSchema<Whiteboard>()
-
-  @type([ChatMessage])
-  chatMessages = new ArraySchema<ChatMessage>()
+class OfficeState extends Schema {
+  @type({ map: Player }) players = new MapSchema<Player>()
+  @type({ map: Computer }) computers = new MapSchema<Computer>()
+  @type({ map: Whiteboard }) whiteboards = new MapSchema<Whiteboard>()
+  @type([ChatMessage]) chatMessages = new ArraySchema<ChatMessage>()
 }
 
-export const whiteboardRoomIds = new Set<string>()
-const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-const charactersLength = characters.length
-
-function getRoomId(): string {
-  let result = ''
-  for (let i = 0; i < 12; i++) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength))
-  }
-  if (!whiteboardRoomIds.has(result)) {
-    whiteboardRoomIds.add(result)
-    return result
-  } else {
-    console.log('roomId exists, remaking another one.')
-    return getRoomId()
-  }
-}
+export { whiteboardRoomIds, Player, Computer, Whiteboard, ChatMessage, OfficeState }

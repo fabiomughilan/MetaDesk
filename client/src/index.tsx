@@ -9,9 +9,13 @@ import './PhaserGame'
 import muiTheme from './MuiTheme'
 import App from './App'
 import store from './stores'
+import { initializeAuth } from './services/AuthService'
 
 const container = document.getElementById('root')
 const root = createRoot(container!)
+// initialize firebase auth listener (updates Redux auth store)
+initializeAuth()
+
 root.render(
   <React.StrictMode>
     <Provider store={store}>

@@ -55,6 +55,9 @@ function App() {
   return (
     <Backdrop>
       {ui}
+      {/* Only show video and button grids when logged in and joined a room */}
+      <div className="video-grid" style={{ display: loggedIn && roomJoined ? 'grid' : 'none' }}></div>
+      {/* <div className="button-grid" style={{ display: loggedIn && roomJoined ? 'grid' : 'none' }}></div> */}
       {/* Render HelperButtonGroup if no dialogs are opened. */}
       {!computerDialogOpen && !whiteboardDialogOpen && <HelperButtonGroup />}
     </Backdrop>
