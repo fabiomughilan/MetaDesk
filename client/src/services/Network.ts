@@ -161,6 +161,7 @@ export default class Network {
       ;(player as any).onChange = (changes: any[]) => {
         changes.forEach((change: any) => {
           const { field, value } = change
+          console.log('Received player update:', { field, value, playerId: key })
           phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
 
           // when a new player finished setting up player name
@@ -292,6 +293,7 @@ export default class Network {
 
   // method to send player updates to Colyseus server
   updatePlayer(currentX: number, currentY: number, currentAnim: string) {
+    console.log('Sending player update:', { x: currentX, y: currentY, anim: currentAnim })
     this.room?.send(Message.UPDATE_PLAYER, { x: currentX, y: currentY, anim: currentAnim })
   }
 
