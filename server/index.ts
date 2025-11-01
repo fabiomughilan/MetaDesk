@@ -2,6 +2,7 @@ import http from 'http'
 import express from 'express'
 import cors from 'cors'
 import { Server, LobbyRoom } from 'colyseus'
+import { WebSocketTransport } from '@colyseus/ws-transport'
 import { monitor } from '@colyseus/monitor'
 import { RoomType } from '../types/Rooms'
 
@@ -18,7 +19,11 @@ app.use(express.static('dist'))
 
 const server = http.createServer(app)
 const gameServer = new Server({
-  server,
+  transport: new WebSocketTransport({
+    server,
+    pingInterval: 30000,
+    pingMaxRetries: 3,
+  }),
 })
 
 // register room handlers
