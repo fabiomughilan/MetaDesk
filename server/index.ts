@@ -9,36 +9,12 @@ import { RoomType } from '../types/Rooms'
 
 import { SkyOffice } from './rooms/SkyOffice'
 
-const port = Number(process.env.PORT || 8080)
+const port = Number(process.env.PORT || 2567)
 const app = express()
 
-// Enable CORS with proper configuration
-const corsConfig = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://workdesk24.netlify.app', 'https://metadesk.netlify.app']
-    : true,
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-};
-app.use(cors(corsConfig));
+app.use(cors())
 app.use(express.json())
-
-// Health check endpoint for deployment verification
-app.get('/', (req, res) => {
-  res.json({ 
-    status: 'MetaDesk Server Running',
-    timestamp: new Date().toISOString(),
-    port: port,
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
-
-app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', server: 'metadesk-colyseus' });
-});
-
-// app.use(express.static('dist'))
+app.use(express.static('dist'))
 
 const server = http.createServer(app)
 const gameServer = new Server({
@@ -67,19 +43,4 @@ gameServer.define(RoomType.CUSTOM, SkyOffice).enableRealtimeListing()
 app.use('/colyseus', monitor())
 
 gameServer.listen(port)
-console.log(`🚀 MetaDesk Server started successfully!`)
-console.log(`📡 WebSocket server listening on port ${port}`)
-console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`)
-console.log(`🏥 Health check: http://localhost:${port}/health`)
-console.log(`📊 Monitor: http://localhost:${port}/colyseus`)
-
-// Handle graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received, shutting down gracefully...')
-  process.exit(0)
-});
-
-process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received, shutting down gracefully...')
-  process.exit(0)
-});
+console.log(`Listening on ws://localhost:${port}`)

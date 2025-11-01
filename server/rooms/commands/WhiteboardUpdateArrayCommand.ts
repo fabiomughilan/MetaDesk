@@ -1,13 +1,13 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
-import { MetaDesk } from '../MetaDesk'
+import { SkyOffice } from '../SkyOffice'
 
 type Payload = {
   client: Client
   whiteboardId: string
 }
 
-export class WhiteboardAddUserCommand extends Command<MetaDesk, Payload> {
+export class WhiteboardAddUserCommand extends Command<SkyOffice, Payload> {
   execute(data: Payload) {
     const { client, whiteboardId } = data
     const whiteboard = this.room.state.whiteboards.get(whiteboardId)
@@ -18,11 +18,12 @@ export class WhiteboardAddUserCommand extends Command<MetaDesk, Payload> {
   }
 }
 
-export class WhiteboardRemoveUserCommand extends Command<MetaDesk, Payload> {
+export class WhiteboardRemoveUserCommand extends Command<SkyOffice, Payload> {
   execute(data: Payload) {
     const { client, whiteboardId } = data
-    const whiteboard = this.state.whiteboards.get(whiteboardId)
+    const whiteboard = this.room.state.whiteboards.get(whiteboardId)
 
+    if (!whiteboard) return
     if (whiteboard.connectedUser.has(client.sessionId)) {
       whiteboard.connectedUser.delete(client.sessionId)
     }

@@ -1,6 +1,6 @@
 import { Command } from '@colyseus/command'
 import { Client } from 'colyseus'
-import { MetaDesk } from '../MetaDesk'
+import { SkyOffice } from '../SkyOffice'
 
 type Payload = {
   client: Client
@@ -9,7 +9,7 @@ type Payload = {
   anim: string
 }
 
-export default class PlayerUpdateCommand extends Command<MetaDesk, Payload> {
+export default class PlayerUpdateCommand extends Command<SkyOffice, Payload> {
   execute(data: Payload) {
     const { client, x, y, anim } = data
 
