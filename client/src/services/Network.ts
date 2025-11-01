@@ -140,78 +140,121 @@ export default class Network {
   private forceSetupListeners() {
     if (!this.room || !this.room.state) return
 
-    // new instance added to the players MapSchema
-    this.room.state.players.onAdd((player: IPlayer, key: string) => {
-      if (key === this.mySessionId) return
-
-      // If player already has a name, emit PLAYER_JOINED immediately
-      if (player.name && player.name !== '') {
-        phaserEvents.emit(Event.PLAYER_JOINED, player, key)
-        store.dispatch(setPlayerNameMap({ id: key, name: player.name }))
-        store.dispatch(pushPlayerJoinedMessage(player.name))
+    try {
+      // Check if the onAdd method exists before calling it
+      if (!this.room.state.players || typeof this.room.state.players.onAdd !== 'function') {
+        console.warn('Players MapSchema onAdd method not available, using state change listeners instead')
+        this.setupAlternativeListeners()
+        return
       }
 
-      // track changes on every child object inside the players MapSchema
-      ;(player as any).onChange = (changes: any[]) => {
-        changes.forEach((change: any) => {
-          const { field, value } = change
-          console.log('Received player update:', { field, value, playerId: key })
-          phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
+      // new instance added to the players MapSchema
+      this.room.state.players.onAdd((player: IPlayer, key: string) => {
+        if (key === this.mySessionId) return
 
-          // when a new player finished setting up player name
-          if (field === 'name' && value !== '') {
-            phaserEvents.emit(Event.PLAYER_JOINED, player, key)
-            store.dispatch(setPlayerNameMap({ id: key, name: value }))
-            store.dispatch(pushPlayerJoinedMessage(value))
-          }
-        })
-      }
-    })
+        // If player already has a name, emit PLAYER_JOINED immediately
+        if (player.name && player.name !== '') {
+          phaserEvents.emit(Event.PLAYER_JOINED, player, key)
+          store.dispatch(setPlayerNameMap({ id: key, name: player.name }))
+          store.dispatch(pushPlayerJoinedMessage(player.name))
+        }
 
-    // an instance removed from the players MapSchema
-    this.room.state.players.onRemove((player: IPlayer, key: string) => {
-      phaserEvents.emit(Event.PLAYER_LEFT, key)
-      this.webRTC?.deleteVideoStream(key)
-      this.webRTC?.deleteOnCalledVideoStream(key)
-      store.dispatch(pushPlayerLeftMessage(player.name))
-      store.dispatch(removePlayerNameMap(key))
-    })
+        // track changes on every child object inside the players MapSchema
+        ;(player as any).onChange = (changes: any[]) => {
+          changes.forEach((change: any) => {
+            const { field, value } = change
+            console.log('Received player update:', { field, value, playerId: key })
+            phaserEvents.emit(Event.PLAYER_UPDATED, field, value, key)
 
-    // new instance added to the computers MapSchema
-    this.room.state.computers.onAdd((computer: IComputer, key: string) => {
-      // track changes on every child object's connectedUser
-      computer.connectedUser.onAdd((item, index) => {
-        phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.COMPUTER)
-      })
-      computer.connectedUser.onRemove((item, index) => {
-        phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.COMPUTER)
-      })
-    })
-
-    // new instance added to the whiteboards MapSchema
-    this.room.state.whiteboards.onAdd((whiteboard: IWhiteboard, key: string) => {
-        store.dispatch(
-          setWhiteboardUrls({
-            whiteboardId: key,
-            roomId: whiteboard.roomId,
+            // when a new player finished setting up player name
+            if (field === 'name' && value !== '') {
+              phaserEvents.emit(Event.PLAYER_JOINED, player, key)
+              store.dispatch(setPlayerNameMap({ id: key, name: value }))
+              store.dispatch(pushPlayerJoinedMessage(value))
+            }
           })
-        )
-        // track changes on every child object's connectedUser
-        whiteboard.connectedUser.onAdd((item, index) => {
-          phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.WHITEBOARD)
-        })
-        whiteboard.connectedUser.onRemove((item, index) => {
-          phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.WHITEBOARD)
-        })
+        }
       })
 
-    // new instance added to the chatMessages ArraySchema
-    this.room.state.chatMessages.onAdd((item, index) => {
-      store.dispatch(pushChatMessage(item))
-    })
+      // an instance removed from the players MapSchema
+      this.room.state.players.onRemove((player: IPlayer, key: string) => {
+        phaserEvents.emit(Event.PLAYER_LEFT, key)
+        this.webRTC?.deleteVideoStream(key)
+        this.webRTC?.deleteOnCalledVideoStream(key)
+        store.dispatch(pushPlayerLeftMessage(player.name))
+        store.dispatch(removePlayerNameMap(key))
+      })
+
+      // Check if computers onAdd exists
+      if (this.room.state.computers && typeof this.room.state.computers.onAdd === 'function') {
+        // new instance added to the computers MapSchema
+        this.room.state.computers.onAdd((computer: IComputer, key: string) => {
+          // track changes on every child object's connectedUser
+          computer.connectedUser.onAdd((item, index) => {
+            phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.COMPUTER)
+          })
+          computer.connectedUser.onRemove((item, index) => {
+            phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.COMPUTER)
+          })
+        })
+      }
+
+      // Check if whiteboards onAdd exists
+      if (this.room.state.whiteboards && typeof this.room.state.whiteboards.onAdd === 'function') {
+        // new instance added to the whiteboards MapSchema
+        this.room.state.whiteboards.onAdd((whiteboard: IWhiteboard, key: string) => {
+          store.dispatch(
+            setWhiteboardUrls({
+              whiteboardId: key,
+              roomId: whiteboard.roomId,
+            })
+          )
+          // track changes on every child object's connectedUser
+          whiteboard.connectedUser.onAdd((item, index) => {
+            phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.WHITEBOARD)
+          })
+          whiteboard.connectedUser.onRemove((item, index) => {
+            phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.WHITEBOARD)
+          })
+        })
+      }
+
+      // Check if chatMessages onAdd exists
+      if (this.room.state.chatMessages && typeof this.room.state.chatMessages.onAdd === 'function') {
+        // new instance added to the chatMessages ArraySchema
+        this.room.state.chatMessages.onAdd((item, index) => {
+          store.dispatch(pushChatMessage(item))
+        })
+      }
+
+    } catch (error) {
+      console.error('Error setting up state listeners, using fallback approach:', error)
+      this.setupAlternativeListeners()
+    }
   }
 
-  private setupMessageHandlers() {
+  private setupAlternativeListeners() {
+    if (!this.room || !this.room.state) return
+
+    console.log('Setting up alternative state change listeners...')
+    
+    // Use onStateChange as a fallback to monitor player changes
+    this.room.onStateChange((state) => {
+      // Handle player state changes
+      if (state.players) {
+        for (const [key, player] of state.players) {
+          if (key !== this.mySessionId && player) {
+            phaserEvents.emit(Event.PLAYER_UPDATED, 'all', player, key)
+            
+            if (player.name && player.name !== '') {
+              phaserEvents.emit(Event.PLAYER_JOINED, player, key)
+              store.dispatch(setPlayerNameMap({ id: key, name: player.name }))
+            }
+          }
+        }
+      }
+    })
+  }  private setupMessageHandlers() {
     if (!this.room) return
 
     // when the server sends room data
