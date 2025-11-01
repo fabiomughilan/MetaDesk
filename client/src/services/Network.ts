@@ -150,6 +150,13 @@ export default class Network {
     this.room.state.players.onAdd((player: IPlayer, key: string) => {
       if (key === this.mySessionId) return
 
+      // If player already has a name, emit PLAYER_JOINED immediately
+      if (player.name && player.name !== '') {
+        phaserEvents.emit(Event.PLAYER_JOINED, player, key)
+        store.dispatch(setPlayerNameMap({ id: key, name: player.name }))
+        store.dispatch(pushPlayerJoinedMessage(player.name))
+      }
+
       // track changes on every child object inside the players MapSchema
       ;(player as any).onChange = (changes: any[]) => {
         changes.forEach((change: any) => {
