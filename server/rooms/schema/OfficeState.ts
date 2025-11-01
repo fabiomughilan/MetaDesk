@@ -1,31 +1,24 @@
-import { Schema, ArraySchema, SetSchema, MapSchema } from '@colyseus/schema'
-import { type } from '@colyseus/schema'
-import type { IOfficeState, IPlayer, IComputer, IWhiteboard, IChatMessage } from '../../../types/IOfficeState'
+import { Schema, ArraySchema, SetSchema, MapSchema, type } from '@colyseus/schema'
 
-// Whiteboard room ID management
-const whiteboardRoomIds = new Set<string>()
+export const whiteboardRoomIds = new Set<string>()
+const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+const charactersLength = characters.length
 
-function generateRoomId(length: number): string {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+function getRoomId(): string {
   let result = ''
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length))
+  for (let i = 0; i < 12; i++) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength))
   }
-  return result
-}
-
-function createUniqueRoomId(): string {
-  const result = generateRoomId(12)
   if (!whiteboardRoomIds.has(result)) {
     whiteboardRoomIds.add(result)
     return result
+  } else {
+    console.log('roomId exists, remaking another one.')
+    return getRoomId()
   }
-  console.log('roomId exists, remaking another one.')
-  return createUniqueRoomId()
 }
 
-// Schema definitions
-class Player extends Schema {
+export class Player extends Schema {
   @type('string') name = ''
   @type('number') x = 700 + Math.floor(Math.random() * 200) // Random spawn 700-900
   @type('number') y = 450 + Math.floor(Math.random() * 100) // Random spawn 450-550
@@ -34,26 +27,31 @@ class Player extends Schema {
   @type('boolean') videoConnected = false
 }
 
-class Computer extends Schema {
+export class Computer extends Schema {
   @type({ set: 'string' }) connectedUser = new SetSchema<string>()
 }
 
-class Whiteboard extends Schema {
-  @type('string') roomId = createUniqueRoomId()
+export class Whiteboard extends Schema {
+  @type('string') roomId = getRoomId()
   @type({ set: 'string' }) connectedUser = new SetSchema<string>()
 }
 
-class ChatMessage extends Schema {
+export class ChatMessage extends Schema {
   @type('string') author = ''
   @type('number') createdAt = new Date().getTime()
   @type('string') content = ''
 }
 
-class OfficeState extends Schema {
-  @type({ map: Player }) players = new MapSchema<Player>()
-  @type({ map: Computer }) computers = new MapSchema<Computer>()
-  @type({ map: Whiteboard }) whiteboards = new MapSchema<Whiteboard>()
-  @type([ChatMessage]) chatMessages = new ArraySchema<ChatMessage>()
-}
+export class OfficeState extends Schema {
+  @type({ map: Player })
+  players = new MapSchema<Player>()
 
-export { whiteboardRoomIds, Player, Computer, Whiteboard, ChatMessage, OfficeState }
+  @type({ map: Computer })
+  computers = new MapSchema<Computer>()
+
+  @type({ map: Whiteboard })
+  whiteboards = new MapSchema<Whiteboard>()
+
+  @type([ChatMessage])
+  chatMessages = new ArraySchema<ChatMessage>()
+}
