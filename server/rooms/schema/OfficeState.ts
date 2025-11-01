@@ -19,39 +19,39 @@ function getRoomId(): string {
 }
 
 export class Player extends Schema {
-  @type('string') name = ''
-  @type('number') x = 700 + Math.floor(Math.random() * 200) // Random spawn 700-900
-  @type('number') y = 450 + Math.floor(Math.random() * 100) // Random spawn 450-550
-  @type('string') anim = 'adam_idle_down'
-  @type('boolean') readyToConnect = false
-  @type('boolean') videoConnected = false
+  @type('string') name: string = ''
+  @type('number') x: number = 700 + Math.floor(Math.random() * 200) // Random spawn 700-900
+  @type('number') y: number = 450 + Math.floor(Math.random() * 100) // Random spawn 450-550
+  @type('string') anim: string = 'adam_idle_down'
+  @type('boolean') readyToConnect: boolean = false
+  @type('boolean') videoConnected: boolean = false
 }
 
 export class Computer extends Schema {
-  @type({ set: 'string' }) connectedUser = new SetSchema<string>()
+  @type({ set: 'string' }) connectedUser: SetSchema<string> = new SetSchema<string>()
 }
 
 export class Whiteboard extends Schema {
-  @type('string') roomId = getRoomId()
-  @type({ set: 'string' }) connectedUser = new SetSchema<string>()
+  @type('string') roomId: string = getRoomId()
+  @type({ set: 'string' }) connectedUser: SetSchema<string> = new SetSchema<string>()
 }
 
 export class ChatMessage extends Schema {
-  @type('string') author = ''
-  @type('number') createdAt = new Date().getTime()
-  @type('string') content = ''
+  @type('string') author: string = ''
+  @type('number') createdAt: number = new Date().getTime()
+  @type('string') content: string = ''
 }
 
 export class OfficeState extends Schema {
   @type({ map: Player })
-  players = new MapSchema<Player>()
+  players: MapSchema<Player> = new MapSchema<Player>()
 
   @type({ map: Computer })
-  computers = new MapSchema<Computer>()
+  computers: MapSchema<Computer> = new MapSchema<Computer>()
 
   @type({ map: Whiteboard })
-  whiteboards = new MapSchema<Whiteboard>()
+  whiteboards: MapSchema<Whiteboard> = new MapSchema<Whiteboard>()
 
   @type([ChatMessage])
-  chatMessages = new ArraySchema<ChatMessage>()
+  chatMessages: ArraySchema<ChatMessage> = new ArraySchema<ChatMessage>()
 }
