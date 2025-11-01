@@ -98,6 +98,23 @@ export default class Network {
     store.dispatch(setSessionId(this.room.sessionId))
     this.webRTC = new WebRTC(this.mySessionId, this)
 
+    // Wait for state to be ready before setting up listeners
+    this.room.onStateChange.once((state) => {
+      this.setupStateListeners()
+    })
+
+    // If state is already available, set up listeners immediately
+    if (this.room.state && this.room.state.players) {
+      this.setupStateListeners()
+    }
+
+    // Handle room messages
+    this.setupMessageHandlers()
+  }
+
+  private setupStateListeners() {
+    if (!this.room || !this.room.state || !this.room.state.players) return
+
     // new instance added to the players MapSchema
     this.room.state.players.onAdd((player: IPlayer, key: string) => {
       if (key === this.mySessionId) return
@@ -159,6 +176,10 @@ export default class Network {
     this.room.state.chatMessages.onAdd((item, index) => {
       store.dispatch(pushChatMessage(item))
     })
+  }
+
+  private setupMessageHandlers() {
+    if (!this.room) return
 
     // when the server sends room data
     this.room.onMessage(Message.SEND_ROOM_DATA, (content) => {
