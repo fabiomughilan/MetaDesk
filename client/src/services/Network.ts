@@ -111,40 +111,34 @@ export default class Network {
     this.setupMessageHandlers()
   }
 
-  private setupStateListeners() {
+  private setupStateListeners(retryCount = 0) {
     if (!this.room || !this.room.state) {
       console.warn('Room or state not available, cannot set up listeners')
       return
     }
 
-    // Check if all required MapSchemas are properly initialized
+    // Maximum 10 retries to prevent infinite loops
+    if (retryCount >= 10) {
+      console.error('Failed to initialize state listeners after 10 attempts, proceeding anyway...')
+      this.forceSetupListeners()
+      return
+    }
+
+    // Check if all required schemas are available
     const { players, computers, whiteboards, chatMessages } = this.room.state
 
-    if (!players || typeof players.onAdd !== 'function') {
-      console.warn('Players MapSchema not properly initialized, retrying in 200ms...')
-      setTimeout(() => this.setupStateListeners(), 200)
-      return
-    }
-
-    if (!computers || typeof computers.onAdd !== 'function') {
-      console.warn('Computers MapSchema not properly initialized, retrying in 200ms...')
-      setTimeout(() => this.setupStateListeners(), 200)
-      return
-    }
-
-    if (!whiteboards || typeof whiteboards.onAdd !== 'function') {
-      console.warn('Whiteboards MapSchema not properly initialized, retrying in 200ms...')
-      setTimeout(() => this.setupStateListeners(), 200)
-      return
-    }
-
-    if (!chatMessages || typeof chatMessages.onAdd !== 'function') {
-      console.warn('ChatMessages ArraySchema not properly initialized, retrying in 200ms...')
-      setTimeout(() => this.setupStateListeners(), 200)
+    if (!players || !computers || !whiteboards || !chatMessages) {
+      console.warn(`Schemas not ready (attempt ${retryCount + 1}/10), retrying in 200ms...`)
+      setTimeout(() => this.setupStateListeners(retryCount + 1), 200)
       return
     }
 
     console.log('All schemas ready, setting up state listeners...')
+    this.forceSetupListeners()
+  }
+
+  private forceSetupListeners() {
+    if (!this.room || !this.room.state) return
 
     // new instance added to the players MapSchema
     this.room.state.players.onAdd((player: IPlayer, key: string) => {
