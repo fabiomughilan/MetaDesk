@@ -113,7 +113,19 @@ export default class Network {
   }
 
   private setupStateListeners() {
-    if (!this.room || !this.room.state || !this.room.state.players) return
+    if (!this.room || !this.room.state || !this.room.state.players) {
+      console.warn('Room state not ready for listeners')
+      return
+    }
+
+    // Check if players is properly initialized as MapSchema
+    if (typeof this.room.state.players.onAdd !== 'function') {
+      console.warn('Players MapSchema not properly initialized, retrying...')
+      setTimeout(() => this.setupStateListeners(), 100)
+      return
+    }
+
+    console.log('Setting up state listeners for players...')
 
     // new instance added to the players MapSchema
     this.room.state.players.onAdd((player: IPlayer, key: string) => {
@@ -144,38 +156,47 @@ export default class Network {
       store.dispatch(removePlayerNameMap(key))
     })
 
-    // new instance added to the computers MapSchema
-    this.room.state.computers.onAdd((computer: IComputer, key: string) => {
-      // track changes on every child object's connectedUser
-      computer.connectedUser.onAdd((item, index) => {
-        phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.COMPUTER)
-      })
-      computer.connectedUser.onRemove((item, index) => {
-        phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.COMPUTER)
-      })
-    })
-
-    // new instance added to the whiteboards MapSchema
-    this.room.state.whiteboards.onAdd((whiteboard: IWhiteboard, key: string) => {
-      store.dispatch(
-        setWhiteboardUrls({
-          whiteboardId: key,
-          roomId: whiteboard.roomId,
+    // Check if computers MapSchema is ready
+    if (this.room.state.computers && typeof this.room.state.computers.onAdd === 'function') {
+      // new instance added to the computers MapSchema
+      this.room.state.computers.onAdd((computer: IComputer, key: string) => {
+        // track changes on every child object's connectedUser
+        computer.connectedUser.onAdd((item, index) => {
+          phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.COMPUTER)
         })
-      )
-      // track changes on every child object's connectedUser
-      whiteboard.connectedUser.onAdd((item, index) => {
-        phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.WHITEBOARD)
+        computer.connectedUser.onRemove((item, index) => {
+          phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.COMPUTER)
+        })
       })
-      whiteboard.connectedUser.onRemove((item, index) => {
-        phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.WHITEBOARD)
-      })
-    })
+    }
 
-    // new instance added to the chatMessages ArraySchema
-    this.room.state.chatMessages.onAdd((item, index) => {
-      store.dispatch(pushChatMessage(item))
-    })
+    // Check if whiteboards MapSchema is ready
+    if (this.room.state.whiteboards && typeof this.room.state.whiteboards.onAdd === 'function') {
+      // new instance added to the whiteboards MapSchema
+      this.room.state.whiteboards.onAdd((whiteboard: IWhiteboard, key: string) => {
+        store.dispatch(
+          setWhiteboardUrls({
+            whiteboardId: key,
+            roomId: whiteboard.roomId,
+          })
+        )
+        // track changes on every child object's connectedUser
+        whiteboard.connectedUser.onAdd((item, index) => {
+          phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.WHITEBOARD)
+        })
+        whiteboard.connectedUser.onRemove((item, index) => {
+          phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.WHITEBOARD)
+        })
+      })
+    }
+
+    // Check if chatMessages ArraySchema is ready  
+    if (this.room.state.chatMessages && typeof this.room.state.chatMessages.onAdd === 'function') {
+      // new instance added to the chatMessages ArraySchema
+      this.room.state.chatMessages.onAdd((item, index) => {
+        store.dispatch(pushChatMessage(item))
+      })
+    }
   }
 
   private setupMessageHandlers() {
