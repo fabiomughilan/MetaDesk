@@ -27,8 +27,8 @@ function createUniqueRoomId(): string {
 // Schema definitions
 class Player extends Schema {
   @type('string') name = ''
-  @type('number') x = 705
-  @type('number') y = 500
+  @type('number') x = 700 + Math.floor(Math.random() * 200) // Random spawn 700-900
+  @type('number') y = 450 + Math.floor(Math.random() * 100) // Random spawn 450-550
   @type('string') anim = 'adam_idle_down'
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false

@@ -94,7 +94,10 @@ export default class Game extends Phaser.Scene {
 
     // debugDraw(groundLayer, this)
 
-    this.myPlayer = this.add.myPlayer(705, 500, 'adam', this.network.mySessionId)
+    // Create my player with random spawn position to avoid stacking
+    const spawnX = 700 + Math.floor(Math.random() * 200) // Random spawn 700-900
+    const spawnY = 450 + Math.floor(Math.random() * 100) // Random spawn 450-550
+    this.myPlayer = this.add.myPlayer(spawnX, spawnY, 'adam', this.network.mySessionId)
     this.playerSelector = new PlayerSelector(this, 0, 0, 16, 16)
 
     // import chair objects from Tiled map to Phaser
