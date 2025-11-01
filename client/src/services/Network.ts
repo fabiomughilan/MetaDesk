@@ -98,34 +98,53 @@ export default class Network {
     store.dispatch(setSessionId(this.room.sessionId))
     this.webRTC = new WebRTC(this.mySessionId, this)
 
-    // Wait for state to be ready before setting up listeners
+    // Wait for the first state synchronization before setting up listeners
     this.room.onStateChange.once((state) => {
-      this.setupStateListeners()
+      console.log('State received, setting up listeners...')
+      // Add a small delay to ensure MapSchema is fully initialized
+      setTimeout(() => {
+        this.setupStateListeners()
+      }, 100)
     })
 
-    // If state is already available, set up listeners immediately
-    if (this.room.state && this.room.state.players) {
-      this.setupStateListeners()
-    }
-
-    // Handle room messages
+    // Handle room messages immediately
     this.setupMessageHandlers()
   }
 
   private setupStateListeners() {
-    if (!this.room || !this.room.state || !this.room.state.players) {
-      console.warn('Room state not ready for listeners')
+    if (!this.room || !this.room.state) {
+      console.warn('Room or state not available, cannot set up listeners')
       return
     }
 
-    // Check if players is properly initialized as MapSchema
-    if (typeof this.room.state.players.onAdd !== 'function') {
-      console.warn('Players MapSchema not properly initialized, retrying...')
-      setTimeout(() => this.setupStateListeners(), 100)
+    // Check if all required MapSchemas are properly initialized
+    const { players, computers, whiteboards, chatMessages } = this.room.state
+
+    if (!players || typeof players.onAdd !== 'function') {
+      console.warn('Players MapSchema not properly initialized, retrying in 200ms...')
+      setTimeout(() => this.setupStateListeners(), 200)
       return
     }
 
-    console.log('Setting up state listeners for players...')
+    if (!computers || typeof computers.onAdd !== 'function') {
+      console.warn('Computers MapSchema not properly initialized, retrying in 200ms...')
+      setTimeout(() => this.setupStateListeners(), 200)
+      return
+    }
+
+    if (!whiteboards || typeof whiteboards.onAdd !== 'function') {
+      console.warn('Whiteboards MapSchema not properly initialized, retrying in 200ms...')
+      setTimeout(() => this.setupStateListeners(), 200)
+      return
+    }
+
+    if (!chatMessages || typeof chatMessages.onAdd !== 'function') {
+      console.warn('ChatMessages ArraySchema not properly initialized, retrying in 200ms...')
+      setTimeout(() => this.setupStateListeners(), 200)
+      return
+    }
+
+    console.log('All schemas ready, setting up state listeners...')
 
     // new instance added to the players MapSchema
     this.room.state.players.onAdd((player: IPlayer, key: string) => {
@@ -156,24 +175,19 @@ export default class Network {
       store.dispatch(removePlayerNameMap(key))
     })
 
-    // Check if computers MapSchema is ready
-    if (this.room.state.computers && typeof this.room.state.computers.onAdd === 'function') {
-      // new instance added to the computers MapSchema
-      this.room.state.computers.onAdd((computer: IComputer, key: string) => {
-        // track changes on every child object's connectedUser
-        computer.connectedUser.onAdd((item, index) => {
-          phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.COMPUTER)
-        })
-        computer.connectedUser.onRemove((item, index) => {
-          phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.COMPUTER)
-        })
+    // new instance added to the computers MapSchema
+    this.room.state.computers.onAdd((computer: IComputer, key: string) => {
+      // track changes on every child object's connectedUser
+      computer.connectedUser.onAdd((item, index) => {
+        phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.COMPUTER)
       })
-    }
+      computer.connectedUser.onRemove((item, index) => {
+        phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.COMPUTER)
+      })
+    })
 
-    // Check if whiteboards MapSchema is ready
-    if (this.room.state.whiteboards && typeof this.room.state.whiteboards.onAdd === 'function') {
-      // new instance added to the whiteboards MapSchema
-      this.room.state.whiteboards.onAdd((whiteboard: IWhiteboard, key: string) => {
+    // new instance added to the whiteboards MapSchema
+    this.room.state.whiteboards.onAdd((whiteboard: IWhiteboard, key: string) => {
         store.dispatch(
           setWhiteboardUrls({
             whiteboardId: key,
@@ -188,15 +202,11 @@ export default class Network {
           phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.WHITEBOARD)
         })
       })
-    }
 
-    // Check if chatMessages ArraySchema is ready  
-    if (this.room.state.chatMessages && typeof this.room.state.chatMessages.onAdd === 'function') {
-      // new instance added to the chatMessages ArraySchema
-      this.room.state.chatMessages.onAdd((item, index) => {
-        store.dispatch(pushChatMessage(item))
-      })
-    }
+    // new instance added to the chatMessages ArraySchema
+    this.room.state.chatMessages.onAdd((item, index) => {
+      store.dispatch(pushChatMessage(item))
+    })
   }
 
   private setupMessageHandlers() {
