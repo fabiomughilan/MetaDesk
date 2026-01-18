@@ -62,9 +62,10 @@ gameServer.onShutdown(function() {
 })
 
 // Override CORS headers for Colyseus matchmaker
-if (gameServer.matchMaker && gameServer.matchMaker.controller) {
-  const originalGetCorsHeaders = gameServer.matchMaker.controller.getCorsHeaders.bind(gameServer.matchMaker.controller)
-  gameServer.matchMaker.controller.getCorsHeaders = function(req) {
+const matchMaker = (gameServer as any).matchMaker
+if (matchMaker && matchMaker.controller) {
+  const originalGetCorsHeaders = matchMaker.controller.getCorsHeaders.bind(matchMaker.controller)
+  matchMaker.controller.getCorsHeaders = function(req: any) {
     const origin = req.headers.origin || req.headers.referer
     
     // Check if origin is allowed
