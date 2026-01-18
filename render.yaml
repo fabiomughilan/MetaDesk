@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: metadesk-server
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        sync: false
+      - key: HOST
+        value: 0.0.0.0

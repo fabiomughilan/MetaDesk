@@ -4,9 +4,11 @@
   "description": "Server for metadesk",
   "main": ".eslintrc.js",
   "scripts": {
-    "start": "cd server && ts-node-dev --project tsconfig.server.json --respawn --transpile-only index.ts",
+    "start": "node server/lib/index.js",
+    "dev": "cd server && ts-node-dev --project tsconfig.server.json --respawn --transpile-only index.ts",
+    "build": "npx tsc --project server/tsconfig.server.json",
     "build:server": "npx tsc --project server/tsconfig.server.json",
-    "start:prod": "node server/lib/server/index.js",
+    "start:prod": "node server/lib/index.js",
     "heroku-postbuild": "cd types && npm ci && cd ../server && npx tsc --project tsconfig.server.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -44,6 +46,7 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "phaser": "^3.90.0",
+    "reflect-metadata": "^0.1.13",
     "regenerator-runtime": "^0.14.1",
     "typescript": "^5.9.3"
   }
