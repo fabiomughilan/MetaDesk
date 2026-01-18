@@ -4,7 +4,7 @@ services:
     runtime: node
     region: oregon
     plan: free
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && cd server && npm install --legacy-peer-deps && cd .. && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
