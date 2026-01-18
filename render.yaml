@@ -1,11 +1,11 @@
 services:
   - type: web
     name: metadesk-server
-    runtime: node
+    runtime: docker
     region: oregon
     plan: free
-    buildCommand: chmod +x build.sh && ./build.sh
-    startCommand: yarn start
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: NODE_ENV
         value: production
