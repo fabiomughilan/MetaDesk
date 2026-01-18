@@ -8,7 +8,7 @@ import AlertTitle from '@mui/material/AlertTitle'
 import ArrowRightIcon from '@mui/icons-material/ArrowRight'
 
 import { Swiper, SwiperSlide } from 'swiper/react'
-import { Navigation } from 'swiper'
+import { Navigation } from 'swiper/modules'
 import 'swiper/css'
 import 'swiper/css/navigation'
 
@@ -17,7 +17,6 @@ import Ash from '../images/login/Ash_login.png'
 import Lucy from '../images/login/Lucy_login.png'
 import Nancy from '../images/login/Nancy_login.png'
 import { useAppSelector, useAppDispatch } from '../hooks'
-import { signInWithGoogle, signOut } from '../services/AuthService'
 import { setLoggedIn } from '../stores/UserStore'
 import { getAvatarString, getColorByString } from '../util'
 
@@ -170,10 +169,8 @@ export default function LoginDialog() {
 
   const handleGoogleSignIn = async () => {
     try {
-      const user = await signInWithGoogle()
-      if (user) {
-        setName(user.displayName || '')
-      }
+      // Firebase auth removed - using simple name input instead
+      console.log('Google sign-in not available')
     } catch (err) {
       console.error('Google sign-in failed', err)
     }
@@ -220,7 +217,7 @@ export default function LoginDialog() {
                 variant="outlined"
                 color="secondary"
                 onClick={() => {
-                  signOut()
+                  console.log('Sign out not available')
                 }}
               >
                 Sign out

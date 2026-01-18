@@ -247,7 +247,7 @@ export default function Chat() {
                     theme="dark"
                     showSkinTones={false}
                     showPreview={false}
-                    onSelect={(emoji) => {
+                    onSelect={(emoji: any) => {
                       setInputValue(inputValue + emoji.native)
                       setShowEmojiPicker(!showEmojiPicker)
                       dispatch(setFocused(true))

@@ -2,7 +2,13 @@
 
 <img alt="Logo" align="right" src="https://user-images.githubusercontent.com/11501902/139942585-a6b044ce-3695-460a-91bd-dd9f1d4611c8.png" width="20%" />
 
-An immersive virtual office
+
+- Come try it out - [Official Website](https://sky-office.co/)
+- Why we built this - [Concept Video](https://www.youtube.com/watch?v=BpDqGTPh8pc)
+- 🙌 Get latest updates? Follow our [Twitter](https://twitter.com/MetaDeskApp).
+- 💕 Love this project? Consider [buy me a coffee](https://www.buymeacoffee.com/MetaDesk).
+
+MetaDesk works on all PC browsers (mobile browsers are currently not supported)
 
 ## Built with
 
