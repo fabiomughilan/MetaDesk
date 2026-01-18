@@ -13,7 +13,27 @@ import { SkyOffice } from './rooms/SkyOffice'
 const port = Number(process.env.PORT || 8080)
 const app = express()
 
-app.use(cors())
+const allowedOrigins = [
+  'https://workdesk24.netlify.app',
+  'https://workdesk26.netlify.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+]
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true)
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true)
+    } else {
+      console.warn(`CORS blocked origin: ${origin}`)
+      callback(null, true) // Allow for now, can change to false later
+    }
+  },
+  credentials: true,
+}))
 app.use(express.json())
 app.use(express.static('dist'))
 
