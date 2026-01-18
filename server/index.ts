@@ -56,6 +56,30 @@ gameServer.define(RoomType.PUBLIC, SkyOffice, {
 })
 gameServer.define(RoomType.CUSTOM, SkyOffice).enableRealtimeListing()
 
+// Configure CORS for Colyseus matchmaker endpoints
+gameServer.onShutdown(function() {
+  console.log('Server shutting down...')
+})
+
+// Override CORS headers for Colyseus matchmaker
+if (gameServer.matchMaker && gameServer.matchMaker.controller) {
+  const originalGetCorsHeaders = gameServer.matchMaker.controller.getCorsHeaders.bind(gameServer.matchMaker.controller)
+  gameServer.matchMaker.controller.getCorsHeaders = function(req) {
+    const origin = req.headers.origin || req.headers.referer
+    
+    // Check if origin is allowed
+    const isAllowed = !origin || allowedOrigins.some(allowed => origin.includes(allowed.replace('https://', '').replace('http://', '')))
+    
+    return {
+      'Access-Control-Allow-Origin': isAllowed && origin ? origin : allowedOrigins[0],
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Max-Age': '86400',
+    }
+  }
+}
+
 /**
  * Register @colyseus/social routes
  *
