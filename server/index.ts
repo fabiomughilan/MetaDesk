@@ -1,3 +1,4 @@
+import 'reflect-metadata'
 import http from 'http'
 import express from 'express'
 import cors from 'cors'
@@ -11,6 +12,7 @@ import { RoomType } from '../types/Rooms'
 import { SkyOffice } from './rooms/SkyOffice'
 
 const port = Number(process.env.PORT || 8080)
+const host = process.env.HOST || '0.0.0.0'
 const app = express()
 
 const allowedOrigins = [
@@ -92,5 +94,7 @@ if (matchMaker && matchMaker.controller) {
 // register colyseus monitor AFTER registering your room handlers
 app.use('/colyseus', monitor())
 
-gameServer.listen(port)
-console.log(`Listening on ws://localhost:${port}`)
+gameServer.listen(port, host)
+console.log(`✓ Colyseus server listening on ${host}:${port}`)
+console.log(`✓ WebSocket endpoint: ws://${host}:${port}`)
+console.log(`✓ Monitor available at: http://${host}:${port}/colyseus`)
