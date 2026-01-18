@@ -32,14 +32,14 @@
     "ts-node-dev": "^2.0.0"
   },
   "dependencies": {
-    "@colyseus/command": "^0.3.2",
-    "@colyseus/monitor": "^0.16.7",
-    "@colyseus/ws-transport": "^0.16.5",
+    "@colyseus/command": "^0.2.0",
+    "@colyseus/monitor": "^0.15.0",
+    "@colyseus/ws-transport": "^0.15.0",
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
     "bcrypt": "^6.0.0",
-    "colyseus": "^0.16.5",
+    "colyseus": "^0.15.0",
     "colyseus.js": "^0.16.22",
     "cors": "^2.8.5",
     "express": "^4.21.2",
