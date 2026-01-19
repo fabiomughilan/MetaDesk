@@ -2,9 +2,9 @@ services:
   - type: web
     name: metadesk-server
     runtime: node
-    region: oregon
+    region: virginia
     plan: free
-    buildCommand: yarn install && cd server && yarn install && cd .. && yarn build
+    buildCommand: bash build.sh
     startCommand: yarn start
     envVars:
       - key: NODE_ENV
